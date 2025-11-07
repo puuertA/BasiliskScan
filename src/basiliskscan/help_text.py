@@ -21,7 +21,7 @@ RECURSOS PRINCIPAIS:
 
   • Detecção automática de arquivos de dependências
 
-  • Relatórios detalhados em formato JSON
+  • Relatórios interativos em HTML com abas dinâmicas
 
   • Interface rica com barras de progresso
 
@@ -53,7 +53,7 @@ cada dependência declarada, gerando um relatório estruturado.
 
   ⏱️  Exibe progresso em tempo real com interface rica
 
-  📊 Gera relatório JSON estruturado com metadados completos
+  📊 Gera relatório HTML interativo com abas e navegação dinâmica
 
 💡 EXEMPLOS DE USO:
 
@@ -61,11 +61,11 @@ cada dependência declarada, gerando um relatório estruturado.
 
   bscan scan --project ./meu-projeto      # Varre um diretório específico  
 
-  bscan scan -p ../backend -o deps.json   # Projeto + saída personalizada
+  bscan scan -p ../backend -o deps.html   # Projeto + saída personalizada
 
   bscan scan --url /opt/apps/webapp       # Modo compatibilidade wapiti
 
-  bscan scan -u ~/projetos/api --output relatorio.json  # URL + saída customizada
+  bscan scan -u ~/projetos/api --output relatorio.html  # URL + saída customizada
 
 ⚠️  DICAS IMPORTANTES:
 
@@ -89,7 +89,7 @@ URL_OPTION_HELP = """Modo alternativo de especificação do alvo (compatibilidad
 Quando especificado, este parâmetro sobrepõe o --project e trata o valor
 como caminho direto para o diretório do projeto."""
 
-OUTPUT_OPTION_HELP = """Define o arquivo de saída para o relatório JSON gerado.
+OUTPUT_OPTION_HELP = """Define o arquivo de saída para o relatório HTML gerado.
 
-O arquivo conterá informações detalhadas sobre todas as dependências
-encontradas, incluindo metadados do projeto e estatísticas da varredura."""
+O arquivo será um relatório interativo com abas navegáveis, contendo
+informações detalhadas sobre dependências, vulnerabilidades e componentes desatualizados."""

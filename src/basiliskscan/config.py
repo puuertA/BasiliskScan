@@ -33,7 +33,7 @@ SUPPORTED_FILES: Set[str] = {
 }
 
 # Configurações de output padrão
-DEFAULT_OUTPUT_FILE = "basiliskscan-report.json"
+DEFAULT_OUTPUT_FILE = "basiliskscan-report.html"
 
 # Mapeamento de ecossistemas para emojis
 ECOSYSTEM_EMOJIS = {

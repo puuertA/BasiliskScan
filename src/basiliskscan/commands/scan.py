@@ -44,7 +44,7 @@ from ..reporter import ReportGenerator
     default=DEFAULT_OUTPUT_FILE,
     show_default=True,
     help=OUTPUT_OPTION_HELP,
-    metavar="<arquivo.json>"
+    metavar="<arquivo.html>"
 )
 def scan_command(project: str, url: Optional[str], output: str):
     """
@@ -52,7 +52,8 @@ def scan_command(project: str, url: Optional[str], output: str):
     
     Analisa recursivamente o diretório especificado em busca de arquivos
     de dependências (package.json, requirements.txt) e gera um relatório
-    detalhado em formato JSON com todas as dependências encontradas.
+    interativo em HTML com abas para navegação entre componentes, vulnerabilidades
+    e componentes desatualizados.
     """
     # Inicializa componentes
     ui = UIHelper()
