@@ -116,15 +116,16 @@ class ReportGenerator:
         }}
         
         .logo {{
-            width: 100px;
-            height: 100px;
+            width: 120px;
+            height: 120px;
             margin: 0 auto 20px;
-            background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxkZWZzPgo8bGluZWFyR3JhZGllbnQgaWQ9InNoaWVsZCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CjxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMxZTFlMWU7c3RvcC1vcGFjaXR5OjEiIC8+CjxzdG9wIG9mZnNldD0iNTAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmEyYTJhO3N0b3Atb3BhY2l0eToxIiAvPgo8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiM0MDQwNDA7c3RvcC1vcGFjaXR5OjEiIC8+CjwvbGluZWFyR3JhZGllbnQ+CjxsaW5lYXJHcmFkaWVudCBpZD0ic25ha2UiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPgo8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojNzZiOTAwO3N0b3Atb3BhY2l0eToxIiAvPgo8c3RvcCBvZmZzZXQ9IjUwJSIgc3R5bGU9InN0b3AtY29sb3I6Izg5Y2EyNjtzdG9wLW9wYWNpdHk6MSIgLz4KPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojNjFhM2QzO3N0b3Atb3BhY2l0eToxIiAvPgo8L2xpbmVhckdyYWRpZW50Pgo8bGluZWFyR3JhZGllbnQgaWQ9ImV5ZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CjxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZmM1MDA7c3RvcC1vcGFjaXR5OjEiIC8+CjxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6I2Y5Y2E0MztzdG9wLW9wYWNpdHk6MSIgLz4KPC9saW5lYXJHcmFkaWVudD4KPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I2ZmNDc1NjtzdG9wLW9wYWNpdHk6MSIgLz4KPHN0b3Agb2Zmc2V0PSI1MCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZjM4NGU7c3RvcC1vcGFjaXR5OjEiIC8+CjxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6I2RjMzU0NTtzdG9wLW9wYWNpdHk6MSIgLz4KPC9saW5lYXJHcmFkaWVudD4KPC9kZWZzPgo8IS0tIE91dGVyIFNoaWVsZCAtLT4KPHA+YXRoIGQ9Ik01MCw1IEwxNSwxOCBMMTUsNjUgQzE1LDc4IDMwLDkwIDUwLDkwIEM3MCw5MCA4NSw3OCA4NSw2NSBMODUsMTggTDUwLDVaIiBmaWxsPSJ1cmwoI3NoaWVsZCkiIHN0cm9rZT0iIzQwNDA0MCIgc3Ryb2tlLXdpZHRoPSIyIi8+CjwhLS0gSW5uZXIgU2hpZWxkIC0tPgo8cGF0aCBkPSJNNTAsMTIgTDIyLDIyIEwyMiw2MiBDMjIsNzIgMzMsODAgNTAsODAgQzY3LDgwIDc4LDcyIDc4LDYyIEw3OCwyMiBMNTAsMTJaIiBmaWxsPSJub25lIiBzdHJva2U9IiM2MDYwNjAiIHN0cm9rZS13aWR0aD0iMSIvPgo8IS0tIEJhc2lsaXNrIEhlYWQgLS0+CjxlbGxpcHNlIGN4PSI1MCIgY3k9IjQwIiByeD0iMTgiIHJ5PSIxMiIgZmlsbD0idXJsKCNzbmFrZSkiLz4KPCEtLSBTbmFrZSBTY2FsZXMgLS0+CjxlbGxpcHNlIGN4PSI0OCIgY3k9IjM4IiByeD0iMTQiIHJ5PSI4IiBmaWxsPSJub25lIiBzdHJva2U9IiM0YTkwZDkiIHN0cm9rZS13aWR0aD0iMS41IiBvcGFjaXR5PSIwLjYiLz4KPGVsbGlwc2UgY3g9IjUyIiBjeT0iNDIiIHJ4PSIxMCIgcnk9IjYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzZhYTZjZCIgc3Ryb2tlLXdpZHRoPSIxIiBvcGFjaXR5PSIwLjQiLz4KPCEtLSBFeWUgLS0+CjxjaXJjbGUgY3g9IjU2IiBjeT0iMzciIHI9IjQiIGZpbGw9InVybCgjZXllKSIvPgo8Y2lyY2xlIGN4PSI1NyIgY3k9IjM2IiByPSIyIiBmaWxsPSIjMjEyMTIxIi8+CjxjaXJjbGUgY3g9IjU3LjUiIGN5PSIzNS41IiByPSIwLjUiIGZpbGw9IiNmZmZmZmYiLz4KPCEtLSBNb3V0aCBhbmQgRmFuZ3MgLS0+CjxwYXRoIGQ9Ik00MCw0MyBRNDcsNDggNTQsNDYiIHN0cm9rZT0iI2ZmNDc1NiIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxwYXRoIGQ9Ik00Miw0NSBMNDAsNTEiIHN0cm9rZT0iI2VkZWRlZCIgc3Ryb2tlLXdpZHRoPSIyIi8+CjxwYXRoIGQ9Ik00OCw0NyBMNDYsNTMiIHN0cm9rZT0iI2VkZWRlZCIgc3Ryb2tlLXdpZHRoPSIyIi8+CjwhLS0gQm9keSBTY2FsZXMgLS0+CjxyZWN0IHg9IjQyIiB5PSI1NSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjQiIHJ4PSIyIiBmaWxsPSJ1cmwoI3NuYWtlKSIgb3BhY2l0eT0iMC44Ii8+CjxyZWN0IHg9IjQ1IiB5PSI2MSIgd2lkdGg9IjEwIiBoZWlnaHQ9IjMiIHJ4PSIxLjUiIGZpbGw9InVybCgjc25ha2UpIiBvcGFjaXR5PSIwLjciLz4KPHJlY3QgeD0iNDciIHk9IjY2IiB3aWR0aD0iNiIgaGVpZ2h0PSIyIiByeD0iMSIgZmlsbD0idXJsKCNzbmFrZSkiIG9wYWNpdHk9IjAuNiIvPgo8cmVjdCB4PSI0OCIgeT0iNzAiIHdpZHRoPSI0IiBoZWlnaHQ9IjIiIHJ4PSIxIiBmaWxsPSJ1cmwoI3NuYWtlKSIgb3BhY2l0eT0iMC41Ii8+CjxyZWN0IHg9IjQ5IiB5PSI3NCIgd2lkdGg9IjIiIGhlaWdodD0iMiIgcng9IjEiIGZpbGw9InVybCgjc25ha2UpIiBvcGFjaXR5PSIwLjQiLz4KPC9zdmc+');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
+            display: block;
+            border-radius: 50%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             filter: drop-shadow(0 6px 12px rgba(0,0,0,0.5));
             animation: logoGlow 3s ease-in-out infinite alternate;
+            background: linear-gradient(135deg, #2a2a2a, #404040);
+            padding: 10px;
         }}
         
         @keyframes logoGlow {{
@@ -390,9 +391,7 @@ class ReportGenerator:
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">
-            <img src="" alt="Basilisk Logo">
-            </div>
+            <img src="./resources/logo.png" alt="Basilisk Logo" class="logo">
             <h1>🛡️ Basilisk - Vulnerable and Outdated Components Report</h1>
             <div class="subtitle">Relatório para: {project_name}</div>
             
@@ -463,7 +462,7 @@ class ReportGenerator:
                             <div class="ecosystem-badge {ecosystem}">{ecosystem}</div>
                         </div>
                         <div class="component-details">
-                            <div class="component-version">📌 Versão: {dep.get('version', 'N/A')}</div>
+                            <div class="component-version">📌 Versão: {dep.get('version_spec', 'Não especificada')}</div>
                             <div class="component-file">📄 Declarado em: {dep.get('declared_in', 'N/A')}</div>
                         </div>
                     </div>'''
@@ -530,16 +529,36 @@ class ReportGenerator:
             PermissionError: Se não houver permissão para escrever no arquivo
             OSError: Se houver erro de I/O ao salvar o arquivo
         """
+        import shutil
+        
         output_file = pathlib.Path(output_path)
+        output_dir = output_file.parent
         
         # Avisa se o arquivo já existe
         if output_file.exists():
             self.console.print(f"[yellow]⚠️  O arquivo '{output_path}' já existe e será sobrescrito.[/yellow]")
         
         try:
+            # Cria diretório resources no local de saída se não existir
+            resources_output_dir = output_dir / "resources"
+            resources_output_dir.mkdir(exist_ok=True)
+            
+            # Caminho para o logo original
+            current_dir = pathlib.Path(__file__).parent.parent.parent  # Volta para a raiz do projeto
+            logo_source = current_dir / "resources" / "logo.png"
+            logo_destination = resources_output_dir / "logo.png"
+            
+            # Copia o logo se existir
+            if logo_source.exists():
+                shutil.copy2(logo_source, logo_destination)
+            else:
+                self.console.print(f"[yellow]⚠️  Logo não encontrado em: {logo_source}[/yellow]")
+            
+            # Salva o HTML
             html_content = self.generate_html_report(report_data)
             with open(output_path, "w", encoding="utf-8") as fh:
                 fh.write(html_content)
+                
         except PermissionError:
             raise PermissionError(f"Sem permissão para escrever no arquivo: {output_path}")
         except OSError as e:

@@ -29,7 +29,7 @@ BasiliskScan é uma ferramenta poderosa e intuitiva desenvolvida para identifica
 
 - **Análise Abrangente**: Varredura recursiva de projetos identificando todas as dependências
 - **Múltiplos Ecossistemas**: Suporte para Node.js (npm) e Python (pip)
-- **Relatórios Detalhados**: Saída estruturada em JSON com metadados completos
+- **Relatórios Interativos**: Saída em HTML com interface rica e navegação por abas
 - **Interface Rica**: Barras de progresso e feedback visual em tempo real
 - **Filtragem Inteligente**: Ignora automaticamente diretórios desnecessários
 
@@ -44,17 +44,19 @@ BasiliskScan é uma ferramenta poderosa e intuitiva desenvolvida para identifica
 - **Node.js**: `package.json` (dependencies, devDependencies, peerDependencies)
 - **Python**: `requirements.txt` (versões fixas e flexíveis)
 
-### 📊 **Relatórios Estruturados**
-- Saída em formato JSON estruturado
-- Metadados completos do projeto analisado
-- Estatísticas detalhadas por ecossistema
-- Timestamp e informações de execução
+### 📊 **Relatórios Interativos**
+- Saída em formato HTML com interface moderna e responsiva
+- Navegação por abas para diferentes categorias de componentes
+- Logo personalizado e visual profissional
+- Metadados completos e estatísticas detalhadas por ecossistema
+- Preparado para futuras funcionalidades de vulnerabilidades
 
 ### 🎨 **Interface Rica**
-- Barras de progresso em tempo real
+- Barras de progresso em tempo real durante o scan
 - Código de cores para diferentes tipos de informação
 - Mensagens de status claras e informativas
-- Logo ASCII artístico
+- Logo ASCII artístico no terminal
+- Relatórios HTML interativos com design moderno
 
 ## 🚀 Instalação
 
@@ -95,7 +97,7 @@ bscan scan
 bscan scan --project /caminho/para/projeto
 
 # Varredura com arquivo de saída personalizado
-bscan scan --project ./meu-app --output relatorio-deps.json
+bscan scan --project ./meu-app --output relatorio-deps.html
 ```
 
 ### Opções Disponíveis
@@ -104,7 +106,7 @@ bscan scan --project ./meu-app --output relatorio-deps.json
 |-------|-------|-----------|--------|
 | `--project` | `-p` | Diretório do projeto a ser analisado | `.` (atual) |
 | `--url` | `-u` | Modo alternativo de especificação do projeto | - |
-| `--output` | `-o` | Arquivo de saída para o relatório JSON | `dependencies_report.json` |
+| `--output` | `-o` | Arquivo de saída para o relatório HTML | `dependencies_report.html` |
 | `--help` | `-h` | Exibe ajuda detalhada | - |
 
 ### Exemplos Práticos
@@ -116,56 +118,53 @@ bscan scan
 
 #### 2. Projeto Específico com Saída Customizada
 ```bash
-bscan scan --project ../meu-backend --output backend-deps.json
+bscan scan --project ../meu-backend --output backend-deps.html
 ```
 
 #### 3. Usando Modo URL (compatibilidade wapiti)
 ```bash
-bscan scan --url /opt/aplicacoes/webapp --output webapp-analysis.json
+bscan scan --url /opt/aplicacoes/webapp --output webapp-analysis.html
 ```
 
 #### 4. Análise de Projeto Python
 ```bash
-bscan scan --project ./api-python --output api-dependencies.json
+bscan scan --project ./api-python --output api-dependencies.html
+```
+
+#### 5. Visualizando o Relatório
+```bash
+# Após a execução, abra o arquivo HTML gerado no seu navegador
+# O relatório inclui logo, navegação por abas e interface interativa
+
+# Exemplo: abrir no navegador padrão (Windows)
+start dependencies_report.html
+
+# Exemplo: abrir no navegador padrão (Linux/Mac)
+open dependencies_report.html
 ```
 
 ## 📊 Formato de Saída
 
-O BasiliskScan gera relatórios em formato JSON estruturado:
+O BasiliskScan gera relatórios em formato HTML interativo com:
 
-```json
-{
-  "scan_metadata": {
-    "tool_name": "BasiliskScan",
-    "version": "0.0.1",
-    "scan_timestamp": "2025-11-06T10:30:45",
-    "target_directory": "/caminho/para/projeto",
-    "output_file": "dependencies_report.json",
-    "execution_time_seconds": 2.45
-  },
-  "project_statistics": {
-    "total_dependencies": 25,
-    "ecosystems": {
-      "npm": 20,
-      "pip": 5
-    },
-    "files_processed": {
-      "package.json": 2,
-      "requirements.txt": 1
-    }
-  },
-  "dependencies": [
-    {
-      "name": "express",
-      "version": "^4.18.0",
-      "type": "dependency",
-      "ecosystem": "npm",
-      "file_path": "/projeto/package.json",
-      "file_type": "package.json"
-    }
-  ]
-}
-```
+### 🎨 **Interface Moderna**
+- **Design responsivo** com tema escuro profissional
+- **Logo personalizado** do BasiliskScan no topo
+- **Navegação por abas** para diferentes categorias:
+  - 📦 **Todos os Componentes**: Lista completa de dependências encontradas
+  - 🚨 **Componentes Vulneráveis**: Preparado para futuras integrações de segurança
+  - ⚠️ **Componentes Desatualizados**: Preparado para verificação de versões
+
+### 📋 **Informações Detalhadas**
+- **Metadados do Scan**: Data, ferramenta, versão, diretório analisado
+- **Estatísticas Resumidas**: Contadores visuais de componentes por categoria
+- **Detalhes dos Componentes**: Nome, versão, ecossistema, arquivo de origem
+- **Badges Coloridos**: Identificação visual por ecossistema (npm, pypi, etc.)
+
+### 🔍 **Componentes Interativos**
+- **Hover Effects**: Destaque visual ao passar mouse sobre componentes
+- **Animações Suaves**: Logo animado e transições elegantes
+- **Estrutura Extensível**: Preparada para futuras funcionalidades de vulnerabilidades
 
 ## 🏗️ Arquitetura do Projeto
 
@@ -228,7 +227,7 @@ pip install -e ".[dev]"
 ### Versão 0.1.0
 - [ ] Suporte a mais formatos de dependências (Pipfile, yarn.lock, composer.json)
 - [ ] Integração com APIs de vulnerabilidades (CVE, npm audit)
-- [ ] Relatórios em múltiplos formatos (CSV, XML, HTML)
+- [ ] Relatórios em formatos adicionais (CSV, XML, JSON)
 - [ ] Cache de resultados para execuções subsequentes
 
 ### Versão 0.2.0
