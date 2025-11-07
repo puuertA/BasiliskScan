@@ -57,6 +57,17 @@ class ReportGenerator:
             "dependencies": dependencies
         }
     
+    def _create_reports_directory(self) -> pathlib.Path:
+        """
+        Cria o diretório 'reports' se não existir.
+        
+        Returns:
+            Caminho para o diretório reports
+        """
+        reports_dir = pathlib.Path.cwd() / "reports"
+        reports_dir.mkdir(exist_ok=True)
+        return reports_dir
+    
     def generate_html_report(self, report_data: Dict) -> str:
         """
         Gera o HTML do relatório com abas interativas.
@@ -440,7 +451,7 @@ class ReportGenerator:
                 <button class="tab-button active" onclick="openTab('all-components')">
                     📦 Todos os Componentes ({project_info['dependency_count']})
                 </button>
-                <button class="tab-button" onclick="openTab('vulnerable-components')">
+                <button class=" tab-button" onclick="openTab('vulnerable-components')">
                     🚨 Componentes Vulneráveis ({len(vulnerable_components)})
                 </button>
                 <button class="tab-button" onclick="openTab('outdated-components')">
@@ -517,13 +528,16 @@ class ReportGenerator:
         
         return html_content
 
-    def save_report_to_file(self, report_data: Dict, output_path: str) -> None:
+    def save_report_to_file(self, report_data: Dict, output_path: str) -> str:
         """
-        Salva o relatório em arquivo HTML.
+        Salva o relatório em arquivo HTML na pasta reports.
         
         Args:
             report_data: Dados do relatório
-            output_path: Caminho do arquivo de saída
+            output_path: Nome do arquivo de saída
+            
+        Returns:
+            Caminho completo do arquivo salvo
             
         Raises:
             PermissionError: Se não houver permissão para escrever no arquivo
@@ -531,16 +545,24 @@ class ReportGenerator:
         """
         import shutil
         
-        output_file = pathlib.Path(output_path)
-        output_dir = output_file.parent
+        # Cria diretório reports no diretório de trabalho atual
+        reports_dir = self._create_reports_directory()
+        
+        # Garante que o arquivo será salvo na pasta reports
+        # Remove qualquer prefixo "reports/" se existir e pega apenas o nome do arquivo
+        output_file_name = pathlib.Path(output_path).name
+        output_file = reports_dir / output_file_name
+        
+        # Debug: mostra onde vai salvar
+        self.console.print(f"[dim]💾 Salvando relatório em: {output_file}[/dim]")
         
         # Avisa se o arquivo já existe
         if output_file.exists():
-            self.console.print(f"[yellow]⚠️  O arquivo '{output_path}' já existe e será sobrescrito.[/yellow]")
+            self.console.print(f"[yellow]⚠️  O arquivo '{output_file}' já existe e será sobrescrito.[/yellow]")
         
         try:
-            # Cria diretório resources no local de saída se não existir
-            resources_output_dir = output_dir / "resources"
+            # Cria diretório resources dentro da pasta reports se não existir
+            resources_output_dir = reports_dir / "resources"
             resources_output_dir.mkdir(exist_ok=True)
             
             # Caminho para o logo original
@@ -556,11 +578,13 @@ class ReportGenerator:
             
             # Salva o HTML
             html_content = self.generate_html_report(report_data)
-            with open(output_path, "w", encoding="utf-8") as fh:
+            with open(output_file, "w", encoding="utf-8") as fh:
                 fh.write(html_content)
+            
+            return str(output_file)
                 
         except PermissionError:
-            raise PermissionError(f"Sem permissão para escrever no arquivo: {output_path}")
+            raise PermissionError(f"Sem permissão para escrever no arquivo: {output_file}")
         except OSError as e:
             raise OSError(f"Erro ao salvar o relatório: {e}")
     
@@ -590,17 +614,24 @@ class ReportGenerator:
         
         Args:
             target_path: Caminho do projeto sendo analisado
-            output_file: Arquivo onde o relatório será salvo
+            output_file: Nome do arquivo onde o relatório será salvo
             url_mode: Se está usando modo URL
             url: URL original (se aplicável)
         """
+        # Cria a pasta reports antecipadamente e mostra onde será salvo
+        reports_dir = self._create_reports_directory()
+        
+        # Garante que mostra o caminho correto na pasta reports
+        output_file_name = pathlib.Path(output_file).name
+        final_output_path = reports_dir / output_file_name
+        
         if url_mode and url:
             self.console.print(f"[dim]🎯 Usando modo URL: {url}[/dim]")
         else:
             self.console.print(f"[dim]🎯 Usando diretório do projeto: {target_path}[/dim]")
         
         self.console.print(f"[cyan]🔍 [BasiliskScan][/cyan] Analisando projeto em: [bold green]{target_path}[/bold green]")
-        self.console.print(f"[dim]📋 Relatório será salvo em: {output_file}[/dim]\n")
+        self.console.print(f"[dim]📋 Relatório será salvo em: {final_output_path}[/dim]\n")
 
 
 class SummaryReporter:

@@ -1,8 +1,17 @@
+README.md
 pyproject.toml
 src/basiliskscan/cli.py
+src/basiliskscan/config.py
+src/basiliskscan/help_text.py
+src/basiliskscan/parsers.py
+src/basiliskscan/reporter.py
+src/basiliskscan/scanner.py
+src/basiliskscan/ui.py
 src/basiliskscan.egg-info/PKG-INFO
 src/basiliskscan.egg-info/SOURCES.txt
 src/basiliskscan.egg-info/dependency_links.txt
 src/basiliskscan.egg-info/entry_points.txt
 src/basiliskscan.egg-info/requires.txt
 src/basiliskscan.egg-info/top_level.txt
+src/basiliskscan/commands/__init__.py
+src/basiliskscan/commands/scan.py

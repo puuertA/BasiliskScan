@@ -40,7 +40,7 @@ from ..reporter import ReportGenerator
     "--output",
     "-o",
     "output", 
-    type=click.Path(dir_okay=False, writable=True),
+    type=str,  # ← MUDANÇA AQUI: usar str em vez de click.Path
     default=DEFAULT_OUTPUT_FILE,
     show_default=True,
     help=OUTPUT_OPTION_HELP,
@@ -86,12 +86,13 @@ def scan_command(project: str, url: Optional[str], output: str):
         report_data = reporter.generate_report_data(target_path, dependencies, ecosystems, output)
         
         try:
-            reporter.save_report_to_file(report_data, output)
+            # save_report_to_file agora retorna o caminho final do arquivo salvo
+            final_output_path = reporter.save_report_to_file(report_data, output)
         except Exception as e:
             handle_file_save_error(e, output)
         
-        # Exibe resultados
-        reporter.display_scan_results(dependencies, ecosystems, output)
+        # Exibe resultados com o caminho final
+        reporter.display_scan_results(dependencies, ecosystems, final_output_path)
         
     except KeyboardInterrupt:
         ui.display_warning("Operação cancelada pelo usuário.")

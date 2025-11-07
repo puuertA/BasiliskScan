@@ -1,0 +1,3 @@
+[console_scripts]
+basiliskscan = basiliskscan.cli:cli
+bscan = basiliskscan.cli:cli
