@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: basiliskscan
+Version: 0.0.1
+Summary: BasiliskScan - CLI para varrer projetos e listar dependências vulneráveis ou desatualizadas.
+Author: PuertA
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.1.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: packaging>=23.0
+Requires-Dist: rich>=13.0.0

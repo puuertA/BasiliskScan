@@ -1,0 +1,8 @@
+pyproject.toml
+src/basiliskscan/cli.py
+src/basiliskscan.egg-info/PKG-INFO
+src/basiliskscan.egg-info/SOURCES.txt
+src/basiliskscan.egg-info/dependency_links.txt
+src/basiliskscan.egg-info/entry_points.txt
+src/basiliskscan.egg-info/requires.txt
+src/basiliskscan.egg-info/top_level.txt
