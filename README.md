@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="../basiliskscan/resources/logo.png" alt="BasiliskScan Logo" width="200" height="200">
+<img src="[../basiliskscan/resources/logo.png](https://github.com/puuertA/BasiliskScan/blob/main/resources/logo.png)" alt="BasiliskScan Logo" width="200" height="200">
 
 ```
 ██████╗  █████╗ ███████╗██╗██╗     ██╗███████╗██╗  ██╗
