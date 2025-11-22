@@ -1,7 +1,20 @@
 # src/basiliskscan/config.py
 """Configurações e constantes globais do BasiliskScan."""
 
+from datetime import datetime
 from typing import Set
+
+
+def get_default_output_filename() -> str:
+    """
+    Gera nome do arquivo de report com timestamp.
+    
+    Returns:
+        Nome do arquivo no formato basiliskscan-report-YYYYMMDD-HHMMSS.html
+    """
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"basiliskscan-report-{timestamp}.html"
+
 
 # Informações da aplicação
 APP_NAME = "BasiliskScan"
@@ -23,28 +36,26 @@ IGNORED_DIRS: Set[str] = {
     "coverage",
     ".coverage",
     "htmlcov",
-    ".env"
+    ".env",
+    "target",  # Maven
+    ".gradle"  # Gradle
 }
 
 # Arquivos de dependências suportados
 SUPPORTED_FILES: Set[str] = {
     "package.json",
-    "requirements.txt"
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts"
 }
 
 # Configurações de output padrão
-DEFAULT_OUTPUT_FILE = "basiliskscan-report.html"
+DEFAULT_OUTPUT_FILE = get_default_output_filename()
 
 # Mapeamento de ecossistemas para emojis
 ECOSYSTEM_EMOJIS = {
     "npm": "📦",
-    "pypi": "🐍", 
-    "unknown": "❓"
+    "ionic": "⚡",
+    "maven": "☕",
+    "gradle": "🐘"
 }
-
-# Seções de dependências do package.json
-NPM_DEPENDENCY_SECTIONS = (
-    "dependencies",
-    "devDependencies", 
-    "peerDependencies"
-)
