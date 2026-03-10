@@ -149,6 +149,18 @@ basiliskscan-report*.json
 *.report.html
 *.report.json
 
+# Arquivos de documentação markdown temporários
+*_SUMMARY.md
+*_IMPLEMENTATION.md
+*_SYSTEM.md
+CHECKLIST_*.md
+INTEGRATION_GUIDE.md
+*.md
+!README.md
+!LICENSE.md
+!CONTRIBUTING.md
+!CHANGELOG.md
+
 # Arquivos temporários
 *.tmp
 *.temp

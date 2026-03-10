@@ -18,7 +18,7 @@ def get_default_output_filename() -> str:
 
 # Informações da aplicação
 APP_NAME = "BasiliskScan"
-APP_VERSION = "0.0.1"
+APP_VERSION = "1.0.0"
 APP_DESCRIPTION = "🛡️ Ferramenta Avançada de Análise de Dependências"
 
 # Diretórios ignorados durante a varredura

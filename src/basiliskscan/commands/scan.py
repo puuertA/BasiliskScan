@@ -10,6 +10,7 @@ from ..help_text import SCAN_HELP, PROJECT_OPTION_HELP, URL_OPTION_HELP, OUTPUT_
 from ..ui import BasiliskCommand, UIHelper, validate_target_path, handle_file_save_error
 from ..scanner import DependencyScanner
 from ..reporter import ReportGenerator
+from ..ingest.aggregator import VulnerabilityAggregator
 
 
 @click.command(
@@ -46,7 +47,13 @@ from ..reporter import ReportGenerator
     help=OUTPUT_OPTION_HELP,
     metavar="<arquivo.html>"
 )
-def scan_command(project: str, url: Optional[str], output: str):
+@click.option(
+    "--skip-vulns",
+    is_flag=True,
+    default=False,
+    help="Pular a análise de vulnerabilidades (mais rápido)"
+)
+def scan_command(project: str, url: Optional[str], output: str, skip_vulns: bool):
     """
     🚀 Executa uma varredura completa de dependências no projeto alvo.
     
@@ -82,8 +89,61 @@ def scan_command(project: str, url: Optional[str], output: str):
         dependencies = scanner.collect_dependencies(target_path)
         ecosystems = scanner.get_project_statistics(dependencies)
         
+        # Buscar vulnerabilidades se não for pulado
+        vulnerabilities = {}
+        if not skip_vulns and dependencies:
+            ui.console.print("[cyan]🔍 Buscando vulnerabilidades...[/cyan]")
+            
+            try:
+                aggregator = VulnerabilityAggregator()
+                
+                # Preparar componentes para busca
+                components_to_check = []
+                for dep in dependencies:
+                    # Extrair versão limpa (remover operadores como ^, ~, >=, etc)
+                    version = dep.get('version_spec', '')
+                    clean_version = version.lstrip('^~>=<')
+                    
+                    components_to_check.append({
+                        'name': dep.get('name', ''),
+                        'version': clean_version if clean_version else None,
+                        'ecosystem': dep.get('ecosystem', '')
+                    })
+                
+                # Debug: mostrar componentes que serão verificados
+                ui.console.print(f"[dim]Debug: Componentes a verificar: {[c['name'] for c in components_to_check[:5]]}{'...' if len(components_to_check) > 5 else ''}[/dim]")
+                
+                # Buscar vulnerabilidades em paralelo
+                ui.console.print(f"[dim]   Analisando {len(components_to_check)} componente(s)...[/dim]")
+                vulnerabilities = aggregator.fetch_multiple_components(components_to_check, parallel=True)
+                
+                # Debug: mostrar chaves retornadas
+                ui.console.print(f"[dim]Debug: Chaves de vulnerabilidades retornadas: {list(vulnerabilities.keys())}[/dim]")
+                
+                # Contar vulnerabilidades encontradas
+                total_vulns = sum(len(v) for v in vulnerabilities.values())
+                vulns_components = sum(1 for v in vulnerabilities.values() if v)
+                
+                if total_vulns > 0:
+                    ui.console.print(f"[yellow]⚠️  Encontradas {total_vulns} vulnerabilidade(s) em {vulns_components} componente(s)[/yellow]")
+                    # Debug: mostrar quais componentes têm vulnerabilidades
+                    for comp_name, vulns in vulnerabilities.items():
+                        if vulns:
+                            ui.console.print(f"[dim]   - {comp_name}: {len(vulns)} vulnerabilidade(s)[/dim]")
+                else:
+                    ui.console.print("[green]✅ Nenhuma vulnerabilidade conhecida encontrada[/green]")
+                    
+            except Exception as e:
+                ui.console.print(f"[yellow]⚠️  Erro ao buscar vulnerabilidades: {str(e)}[/yellow]")
+                ui.console.print("[dim]   Continuando sem análise de vulnerabilidades...[/dim]")
+                vulnerabilities = {}
+        elif skip_vulns:
+            ui.console.print("[dim]🔍 Análise de vulnerabilidades pulada (--skip-vulns)[/dim]")
+        
         # Gera e salva o relatório
-        report_data = reporter.generate_report_data(target_path, dependencies, ecosystems, output)
+        report_data = reporter.generate_report_data(
+            target_path, dependencies, ecosystems, output, vulnerabilities
+        )
         
         try:
             # save_report_to_file agora retorna o caminho final do arquivo salvo
@@ -92,7 +152,7 @@ def scan_command(project: str, url: Optional[str], output: str):
             handle_file_save_error(e, output)
         
         # Exibe resultados com o caminho final
-        reporter.display_scan_results(dependencies, ecosystems, final_output_path)
+        reporter.display_scan_results(dependencies, ecosystems, final_output_path, vulnerabilities)
         
     except KeyboardInterrupt:
         ui.display_warning("Operação cancelada pelo usuário.")

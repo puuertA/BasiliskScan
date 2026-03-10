@@ -44,6 +44,13 @@ BasiliskScan é uma ferramenta poderosa e intuitiva desenvolvida para identifica
 - **Node.js**: `package.json` (dependencies, devDependencies, peerDependencies)
 - **Python**: `requirements.txt` (versões fixas e flexíveis)
 
+### 🔐 **Módulo de Ingestão de Vulnerabilidades** *(NOVO!)*
+- **NVD (National Vulnerability Database)**: Integração com API 2.0 do NIST
+- **OSS Index**: Suporte a Sonatype OSS Index API v3
+- **Normalização**: Dados padronizados de múltiplas fontes
+- **Agregação**: Busca paralela e mesclagem inteligente de vulnerabilidades
+- Ver: [Documentação do Módulo de Ingestão](src/basiliskscan/ingest/README.md)
+
 ### 📊 **Relatórios Interativos**
 - Saída em formato HTML com interface moderna e responsiva
 - Navegação por abas para diferentes categorias de componentes
@@ -208,11 +215,21 @@ venv\Scripts\activate     # Windows
 pip install -e ".[dev]"
 ```
 
+### Demonstração do Módulo de Ingestão
+```bash
+# Execute a demonstração
+python demo_ingest.py
+
+# Ou rode os exemplos completos
+python -m basiliskscan.ingest.example_usage
+```
+
 ### Estrutura de Dependências
 - **click**: Interface de linha de comando
-- **requests**: Requisições HTTP (funcionalidades futuras)
+- **requests**: Requisições HTTP para APIs de vulnerabilidades
 - **packaging**: Manipulação de versões de pacotes
 - **rich**: Interface rica e colorida no terminal
+- **python-dateutil**: Manipulação de datas
 
 ### Contribuindo
 
@@ -224,9 +241,15 @@ pip install -e ".[dev]"
 
 ## 🔮 Roadmap
 
-### Versão 0.1.0
+### Versão 0.1.0 (EM DESENVOLVIMENTO)
+- [x] **Módulo de ingestão de vulnerabilidades**
+  - [x] Cliente NVD (National Vulnerability Database)
+  - [x] Cliente OSS Index (Sonatype)
+  - [x] Normalização de dados de múltiplas fontes
+  - [x] Agregador com busca paralela
+- [ ] Integração do módulo de ingestão com o scanner
+- [ ] Correlação automática de versões vulneráveis
 - [ ] Suporte a mais formatos de dependências (Pipfile, yarn.lock, composer.json)
-- [ ] Integração com APIs de vulnerabilidades (CVE, npm audit)
 - [ ] Relatórios em formatos adicionais (CSV, XML, JSON)
 - [ ] Cache de resultados para execuções subsequentes
 
@@ -235,6 +258,7 @@ pip install -e ".[dev]"
 - [ ] Verificação de licenças de pacotes
 - [ ] Comando de atualização automática de dependências
 - [ ] Interface web para visualização de relatórios
+- [ ] GitHub Advisory Database integration
 
 ### Versão 1.0.0
 - [ ] Sistema de plugins extensível
