@@ -1,18 +1,17 @@
-"""
-Gerenciador de configurações para APIs de vulnerabilidades.
-"""
+"""Gerenciador de configurações do módulo de ingestão."""
 
-import os
 from typing import Optional, Dict, Any, Literal
 from pathlib import Path
 import json
+
+from basiliskscan.auth.credential_manager import CredentialManager
 
 
 CacheBackend = Literal["sqlite", "json", "hybrid"]
 
 
 class IngestConfig:
-    """Gerencia configurações de API keys para fontes de vulnerabilidades."""
+    """Gerencia configurações de ingestão e delega credenciais para auth."""
     
     CONFIG_FILE = ".basiliskscan_ingest.json"
     
@@ -20,6 +19,7 @@ class IngestConfig:
         """Inicializa o gerenciador de configurações."""
         self.config_path = Path.home() / self.CONFIG_FILE
         self._config = self._load_config()
+        self.credential_manager = CredentialManager()
     
     def _load_config(self) -> Dict[str, Any]:
         """Carrega configurações do arquivo."""
@@ -46,30 +46,22 @@ class IngestConfig:
         
         Ordem de prioridade:
         1. Variável de ambiente NVD_API_KEY
-        2. Arquivo de configuração
+        2. Keyring do sistema operacional
+        3. ~/.config/basiliskscan/credentials.toml
         
         Returns:
             API key ou None
         """
-        # Tenta variável de ambiente primeiro
-        env_key = os.environ.get('NVD_API_KEY')
-        if env_key:
-            return env_key
-        
-        # Tenta arquivo de configuração
-        return self._config.get('nvd', {}).get('api_key')
+        return self.credential_manager.get_nvd_api_key()
     
     def set_nvd_api_key(self, api_key: str):
         """
-        Define a API key do NVD no arquivo de configuração.
+        Define a API key do NVD no arquivo de credenciais central.
         
         Args:
             api_key: API key do NVD
         """
-        if 'nvd' not in self._config:
-            self._config['nvd'] = {}
-        self._config['nvd']['api_key'] = api_key
-        self.save_config()
+        self.credential_manager.set_credentials("nvd", {"api_key": api_key})
     
     def get_oss_index_credentials(self) -> tuple[Optional[str], Optional[str]]:
         """
@@ -77,56 +69,48 @@ class IngestConfig:
         
         Ordem de prioridade:
         1. Variáveis de ambiente OSS_INDEX_USERNAME e OSS_INDEX_TOKEN
-        2. Arquivo de configuração
+        2. Keyring do sistema operacional
+        3. ~/.config/basiliskscan/credentials.toml
         
         Returns:
             Tupla (username, token) ou (None, None)
         """
-        # Tenta variáveis de ambiente primeiro
-        env_username = os.environ.get('OSS_INDEX_USERNAME')
-        env_token = os.environ.get('OSS_INDEX_TOKEN')
-        if env_username and env_token:
-            return (env_username, env_token)
-        
-        # Tenta arquivo de configuração
-        oss_config = self._config.get('oss_index', {})
-        return (
-            oss_config.get('username'),
-            oss_config.get('token')
-        )
+        return self.credential_manager.get_oss_index_credentials()
     
     def set_oss_index_credentials(self, username: str, token: str):
         """
-        Define credenciais do OSS Index no arquivo de configuração.
+        Define credenciais do OSS Index no arquivo de credenciais central.
         
         Args:
             username: Username do OSS Index
             token: Token de autenticação
         """
-        if 'oss_index' not in self._config:
-            self._config['oss_index'] = {}
-        self._config['oss_index']['username'] = username
-        self._config['oss_index']['token'] = token
-        self.save_config()
+        self.credential_manager.set_credentials(
+            "oss_index",
+            {"username": username, "token": token},
+        )
     
     def clear_credentials(self):
-        """Remove todas as credenciais do arquivo de configuração."""
-        self._config = {}
-        self.save_config()
+        """Remove credenciais persistidas na camada central de auth."""
+        self.credential_manager.clear_stored_credentials()
     
     def get_all_config(self) -> Dict[str, Any]:
         """Retorna todas as configurações (sem expor valores sensíveis)."""
         safe_config = {}
-        
-        if 'nvd' in self._config:
+
+        nvd_record = self.credential_manager.discover_credentials("nvd")
+        if nvd_record:
             safe_config['nvd'] = {
-                'api_key_configured': bool(self._config['nvd'].get('api_key'))
+                'api_key_configured': True,
+                'source': nvd_record.source.value,
             }
-        
-        if 'oss_index' in self._config:
+
+        oss_record = self.credential_manager.discover_credentials("oss_index")
+        if oss_record:
             safe_config['oss_index'] = {
-                'username': self._config['oss_index'].get('username'),
-                'token_configured': bool(self._config['oss_index'].get('token'))
+                'username': oss_record.data.get('username'),
+                'token_configured': bool(oss_record.data.get('token')),
+                'source': oss_record.source.value,
             }
         
         if 'cache' in self._config:

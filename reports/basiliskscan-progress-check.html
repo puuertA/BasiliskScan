@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BasiliskScan - Relatório de Segurança - basiliskscan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #1e1e1e;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            overflow: visible;
+            border: 1px solid #333;
+        }
+        
+        /* Header Styles */
+        .header {
+            background: linear-gradient(135deg, #0f1419 0%, #1a1a2e 50%, #16213e 100%);
+            color: #e0e0e0;
+            padding: 40px;
+            text-align: center;
+            border-bottom: 3px solid #4a90d9;
+        }
+        
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 20px;
+            display: block;
+            border-radius: 50%;
+            box-shadow: 0 10px 25px rgba(74, 144, 217, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 25px;
+        }
+        
+        /* Scan Info Grid */
+        .scan-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 30px;
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .scan-info-item {
+            text-align: left;
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            border-left: 3px solid #4a90d9;
+        }
+        
+        .scan-info-item .label {
+            font-size: 0.85em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        
+        .scan-info-item .value {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+        
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            background: #2a2a2a;
+            border-bottom: 2px solid #404040;
+            overflow-x: auto;
+        }
+        
+        .nav-tab {
+            flex: 1;
+            min-width: 200px;
+            padding: 20px;
+            background: none;
+            border: none;
+            font-size: 1em;
+            font-weight: 600;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .nav-tab:hover {
+            background: #333;
+            color: #b0b0b0;
+        }
+        
+        .nav-tab.active {
+            background: #1e1e1e;
+            color: #4a90d9;
+            border-bottom-color: #4a90d9;
+        }
+        
+        /* Content Sections */
+        .tab-content {
+            display: none;
+            padding: 40px;
+            background: #1e1e1e;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #e0e0e0;
+            border-bottom: 2px solid #404040;
+            padding-bottom: 10px;
+        }
+        
+        .section-subtitle {
+            font-size: 1.3em;
+            margin: 30px 0 15px 0;
+            color: #b0b0b0;
+        }
+        
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #2a2a2a 0%, #333 100%);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid #404040;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+        
+        .stat-card .icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .icon i, .section-title i, .section-subtitle i, .nav-tab i, .scan-info-item .label i, .header h1 i, .vuln-type i, .cvss-score i, .translation-label i, .info-label i, .btn i, .recommendation-card .title i, .severity-badge i {
+            margin-right: 6px;
+        }
+        
+        .stat-card .number {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .label {
+            font-size: 1em;
+            color: #888;
+        }
+        
+        .stat-card.info {
+            border-left: 4px solid #4a90d9;
+        }
+        
+        .stat-card.info .number {
+            color: #4a90d9;
+        }
+        
+        .stat-card.success {
+            border-left: 4px solid #2ecc71;
+        }
+        
+        .stat-card.success .number {
+            color: #2ecc71;
+        }
+        
+        .stat-card.warning {
+            border-left: 4px solid #f39c12;
+        }
+        
+        .stat-card.warning .number {
+            color: #f39c12;
+        }
+        
+        .stat-card.danger {
+            border-left: 4px solid #e74c3c;
+        }
+        
+        .stat-card.danger .number {
+            color: #e74c3c;
+        }
+        
+        .stat-card.critical {
+            border-left: 4px solid #c0392b;
+            background: linear-gradient(135deg, #2a2a2a 0%, #3d1f1f 100%);
+        }
+        
+        .stat-card.critical .number {
+            color: #e74c3c;
+        }
+        
+        /* Vulnerability Cards */
+        .vuln-card {
+            background: #2a2a2a;
+            border: 1px solid #404040;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 5px solid #4a90d9;
+            transition: all 0.3s ease;
+        }
+        
+        .vuln-card:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+        
+        .vuln-card.critical {
+            border-left-color: #c0392b;
+            background: linear-gradient(135deg, #2a2a2a 0%, #3d1f1f 100%);
+        }
+        
+        .vuln-card.high {
+            border-left-color: #e74c3c;
+        }
+        
+        .vuln-card.medium {
+            border-left-color: #f39c12;
+        }
+        
+        .vuln-card.low {
+            border-left-color: #3498db;
+        }
+        
+        .vuln-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .component-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #404040;
+            background: rgba(255,255,255,0.06);
+            color: #e0e0e0;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .component-toggle:hover {
+            border-color: #4a90d9;
+            background: rgba(74, 144, 217, 0.15);
+        }
+
+        .vuln-count {
+            font-size: 0.85em;
+            color: #b0b0b0;
+            font-weight: 500;
+        }
+
+        .vuln-card-body {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: max-height 0.5s ease, opacity 0.3s ease;
+        }
+
+        .vuln-card-body.expanded {
+            max-height: 12000px;
+            overflow: visible;
+            opacity: 1;
+            margin-top: 15px;
+        }
+        
+        .component-name {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .ecosystem-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .ecosystem-badge.npm {
+            background: linear-gradient(135deg, #cb3837, #a02d2d);
+            color: white;
+        }
+        
+        .ecosystem-badge.pypi {
+            background: linear-gradient(135deg, #3776ab, #2d5f8a);
+            color: white;
+        }
+        
+        .ecosystem-badge.maven {
+            background: linear-gradient(135deg, #f58025, #c96915);
+            color: white;
+        }
+
+        .ecosystem-badge.ant {
+            background: linear-gradient(135deg, #8e44ad, #6c3483);
+            color: white;
+        }
+
+        .version-flow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .version-current {
+            color: #e0e0e0;
+            font-weight: 600;
+        }
+
+        .version-arrow {
+            color: #f1c40f;
+            font-weight: 700;
+        }
+
+        .version-target {
+            color: #2ecc71;
+            font-weight: 700;
+        }
+        
+        .component-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-label {
+            font-size: 0.85em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-size: 1em;
+            color: #e0e0e0;
+            font-weight: 600;
+        }
+        
+        .info-value.version {
+            color: #4a90d9;
+        }
+        
+        .info-value.fixed {
+            color: #2ecc71;
+        }
+        
+        /* Vulnerability List */
+        .vuln-list {
+            margin-top: 20px;
+        }
+        
+        .vuln-item {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 3px solid #404040;
+        }
+        
+        .vuln-item.critical {
+            border-left-color: #c0392b;
+        }
+        
+        .vuln-item.high {
+            border-left-color: #e74c3c;
+        }
+        
+        .vuln-item.medium {
+            border-left-color: #f39c12;
+        }
+        
+        .vuln-item.low {
+            border-left-color: #3498db;
+        }
+        
+        .vuln-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .vuln-id {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .severity-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 700;
+            text-transform: uppercase;
+            white-space: nowrap;
+            position: relative;
+            cursor: help;
+        }
+
+        .severity-badge:hover .tooltip,
+        .severity-chip:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .severity-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            position: relative;
+            cursor: help;
+        }
+        
+        .severity-badge.critical {
+            background: #c0392b;
+            color: white;
+        }
+        
+        .severity-badge.high {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .severity-badge.medium {
+            background: #f39c12;
+            color: #2d3436;
+        }
+        
+        .severity-badge.low {
+            background: #3498db;
+            color: white;
+        }
+
+        .severity-badge.update {
+            background: #f1c40f;
+            color: #2d3436;
+        }
+
+        .status-badges {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .vuln-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .vuln-type-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid #404040;
+            border-radius: 8px;
+        }
+
+        .vuln-type-legend .vuln-type {
+            font-size: 0.85em;
+        }
+
+        .type-count {
+            color: #b0b0b0;
+            font-weight: 600;
+            margin-left: 3px;
+        }
+        
+        .vuln-type {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: rgba(74, 144, 217, 0.2);
+            border-radius: 5px;
+            font-size: 0.9em;
+            color: #4a90d9;
+            border: 1px solid #4a90d9;
+            cursor: help;
+            position: relative;
+        }
+        
+        .vuln-type:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .tooltip {
+            visibility: hidden;
+            width: 300px;
+            max-width: calc(100vw - 40px);
+            background-color: #2d3436;
+            color: #dfe6e9;
+            text-align: left;
+            border-radius: 6px;
+            padding: 12px;
+            position: absolute;
+            z-index: 2147483647;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -150px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid #4a90d9;
+            font-size: 0.85em;
+            line-height: 1.4;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            text-transform: none;
+        }
+        
+        .tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #2d3436 transparent transparent transparent;
+        }
+
+        .vuln-header .severity-badge .tooltip {
+            left: auto;
+            right: 0;
+            margin-left: 0;
+        }
+
+        .vuln-header .severity-badge .tooltip::after {
+            left: auto;
+            right: 18px;
+            margin-left: 0;
+        }
+        
+        .cvss-score {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            font-weight: 600;
+        }
+        
+        .vuln-description {
+            margin: 15px 0;
+            line-height: 1.6;
+            color: #b0b0b0;
+        }
+        
+        .description-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .description-header:hover {
+            color: #4a90d9;
+        }
+        
+        .expand-arrow {
+            transition: transform 0.3s ease;
+            display: inline-block;
+        }
+        
+        .expand-arrow.expanded {
+            transform: rotate(90deg);
+        }
+        
+        .description-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease;
+        }
+        
+        .description-content.expanded {
+            max-height: 3000px;
+        }
+        
+        .description-text {
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 3px solid #4a90d9;
+            line-height: 1.8;
+        }
+        
+        .description-text h1,
+        .description-text h2,
+        .description-text h3 {
+            color: #4a90d9;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .description-text h1 {
+            font-size: 1.5em;
+        }
+        
+        .description-text h2 {
+            font-size: 1.3em;
+        }
+        
+        .description-text h3 {
+            font-size: 1.1em;
+        }
+        
+        .description-text code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #f39c12;
+            font-size: 0.9em;
+        }
+        
+        .description-text pre {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .description-text pre code {
+            background: none;
+            padding: 0;
+            color: #2ecc71;
+            font-size: 0.85em;
+            line-height: 1.5;
+        }
+        
+        .description-text a {
+            color: #4a90d9;
+            text-decoration: underline;
+        }
+        
+        .description-text a:hover {
+            color: #5aa3e8;
+        }
+        
+        .description-text strong {
+            color: #e0e0e0;
+            font-weight: 700;
+        }
+        
+        .description-text em {
+            font-style: italic;
+            color: #b0b0b0;
+        }
+        
+        .description-translation {
+            padding: 15px;
+            background: rgba(74, 144, 217, 0.1);
+            border-radius: 5px;
+            border-left: 3px solid #4a90d9;
+            line-height: 1.8;
+        }
+        
+        .description-translation h1,
+        .description-translation h2,
+        .description-translation h3 {
+            color: #4a90d9;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .description-translation h1 {
+            font-size: 1.5em;
+        }
+        
+        .description-translation h2 {
+            font-size: 1.3em;
+        }
+        
+        .description-translation h3 {
+            font-size: 1.1em;
+        }
+        
+        .description-translation code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #f39c12;
+            font-size: 0.9em;
+        }
+        
+        .description-translation pre {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .description-translation pre code {
+            background: none;
+            padding: 0;
+            color: #2ecc71;
+            font-size: 0.85em;
+            line-height: 1.5;
+        }
+        
+        .description-translation a {
+            color: #4a90d9;
+            text-decoration: underline;
+        }
+        
+        .description-translation a:hover {
+            color: #5aa3e8;
+        }
+        
+        .description-translation strong {
+            color: #e0e0e0;
+            font-weight: 700;
+        }
+        
+        .description-translation em {
+            font-style: italic;
+            color: #b0b0b0;
+        }
+        
+        .translation-label {
+            font-weight: 600;
+            color: #4a90d9;
+            margin-bottom: 5px;
+        }
+        
+        .vuln-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: #4a90d9;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #357abd;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 144, 217, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #e0e0e0;
+            border: 1px solid #404040;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: #4a90d9;
+        }
+        
+        /* Dependency Table */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        thead {
+            background: #333;
+        }
+        
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #e0e0e0;
+            border-bottom: 2px solid #404040;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #333;
+            color: #b0b0b0;
+        }
+        
+        tr:hover {
+            background: rgba(74, 144, 217, 0.1);
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        
+        .empty-state .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        .empty-state .message {
+            font-size: 1.3em;
+            color: #b0b0b0;
+            margin-bottom: 10px;
+        }
+        
+        .empty-state .note {
+            color: #888;
+        }
+        
+        /* Recommendations */
+        .recommendation-card {
+            background: linear-gradient(135deg, #2a2a2a 0%, #1f3d1f 100%);
+            border: 1px solid #2ecc71;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .recommendation-card .title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #2ecc71;
+            margin-bottom: 10px;
+        }
+        
+        .recommendation-card .content {
+            color: #b0b0b0;
+            line-height: 1.6;
+        }
+        
+        /* Footer */
+        .footer {
+            background: linear-gradient(135deg, #0f1419 0%, #1a1a2e 100%);
+            color: #888;
+            text-align: center;
+            padding: 25px;
+            border-top: 1px solid #404040;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                border-radius: 0;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .component-info {
+                grid-template-columns: 1fr;
+            }
+            
+            .vuln-card-header,
+            .vuln-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <img src="./resources/logo.png" alt="BasiliskScan Logo" class="logo">
+            <h1><i class="bi bi-shield-check"></i> BasiliskScan - Relatório de Segurança</h1>
+            <div class="subtitle">Análise de Componentes e Vulnerabilidades</div>
+            
+            <div class="scan-info">
+                <div class="scan-info-item">
+                    <div class="label"><i class="bi bi-calendar-event"></i> Data da Análise</div>
+                    <div class="value">16/03/2026 17:06:49</div>
+                </div>
+                <div class="scan-info-item">
+                    <div class="label"><i class="bi bi-folder2-open"></i> Projeto</div>
+                    <div class="value">basiliskscan</div>
+                </div>
+                <div class="scan-info-item">
+                    <div class="label"><i class="bi bi-stopwatch"></i> Tempo de Execução</div>
+                    <div class="value">0.01s</div>
+                </div>
+                <div class="scan-info-item">
+                    <div class="label"><i class="bi bi-tools"></i> Ferramenta</div>
+                    <div class="value">BasiliskScan v1.0.0</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="openTab('overview', event)">
+                <i class="bi bi-bar-chart-line"></i> Visão Geral
+            </button>
+            <button class="nav-tab" onclick="openTab('dependencies', event)">
+                <i class="bi bi-box-seam"></i> Dependências (0)
+            </button>
+            <button class="nav-tab" onclick="openTab('vulnerabilities', event)">
+                <i class="bi bi-shield-exclamation"></i> Vulnerabilidades (0 em 0 componente(s))
+            </button>
+            <button class="nav-tab" onclick="openTab('recommendations', event)">
+                <i class="bi bi-lightbulb"></i> Recomendações
+            </button>
+        </div>
+        
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <div class="section">
+                <h2 class="section-title"><i class="bi bi-bar-chart-line"></i> Visão Geral da Análise</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card info">
+                        <div class="icon"><i class="bi bi-box-seam"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">Total de Dependências</div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <div class="icon"><i class="bi bi-arrow-up-circle"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">Componentes Desatualizados</div>
+                    </div>
+                    
+                    <div class="stat-card danger">
+                        <div class="icon"><i class="bi bi-shield-exclamation"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">Componentes Vulneráveis</div>
+                    </div>
+                    
+                    <div class="stat-card warning">
+                        <div class="icon"><i class="bi bi-exclamation-triangle"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">Total de Vulnerabilidades</div>
+                    </div>
+                    
+                    <div class="stat-card info">
+                        <div class="icon"><i class="bi bi-stopwatch"></i></div>
+                        <div class="number">0.01s</div>
+                        <div class="label">Tempo de Execução</div>
+                    </div>
+                </div>
+                
+                <h3 class="section-subtitle"><i class="bi bi-bullseye"></i> Distribuição por Severidade</h3>
+                <div class="stats-grid">
+                    <div class="stat-card critical">
+                        <div class="icon"><i class="bi bi-exclamation-octagon-fill"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">
+                            <span class="severity-chip">
+                                Críticas
+                                <span class="tooltip">Crítica: risco extremo com alta probabilidade de impacto grave. Requer correção imediata.</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card danger">
+                        <div class="icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">
+                            <span class="severity-chip">
+                                Altas
+                                <span class="tooltip">Alta: risco elevado de exploração e impacto relevante. Deve ser tratada com prioridade alta.</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card warning">
+                        <div class="icon"><i class="bi bi-exclamation-circle-fill"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">
+                            <span class="severity-chip">
+                                Médias
+                                <span class="tooltip">Média: risco moderado, normalmente depende de contexto adicional para exploração completa.</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card info">
+                        <div class="icon"><i class="bi bi-info-circle-fill"></i></div>
+                        <div class="number">0</div>
+                        <div class="label">
+                            <span class="severity-chip">
+                                Baixas
+                                <span class="tooltip">Baixa: risco reduzido e impacto limitado, mas recomenda-se correção no ciclo de manutenção.</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dependencies Tab -->
+        <div id="dependencies" class="tab-content">
+            <div class="section">
+                <h2 class="section-title"><i class="bi bi-box-seam"></i> Dependências Identificadas</h2>
+                
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Versão</th>
+                                <th>Ecossistema</th>
+                                <th>Arquivo</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Vulnerabilities Tab -->
+        <div id="vulnerabilities" class="tab-content">
+            <div class="section">
+                <h2 class="section-title"><i class="bi bi-shield-exclamation"></i> Vulnerabilidades Detectadas</h2>
+                <div class="empty-state">
+                    <div class="icon"><i class="bi bi-shield-check"></i></div>
+                    <div class="message">Nenhuma vulnerabilidade detectada</div>
+                    <div class="note">Todos os componentes analisados estão seguros ou não possuem vulnerabilidades conhecidas publicamente.</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recommendations Tab -->
+        <div id="recommendations" class="tab-content">
+            <div class="section">
+                <h2 class="section-title"><i class="bi bi-lightbulb"></i> Recomendações de Mitigação</h2>
+                <div class="empty-state">
+                    <div class="icon"><i class="bi bi-check-circle"></i></div>
+                    <div class="message">Seu projeto está seguro!</div>
+                    <div class="note">Continue monitorando regularmente suas dependências para manter a segurança.</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>Relatório gerado por <strong>BasiliskScan v1.0.0</strong></p>
+            <p>16/03/2026 17:06:49</p>
+        </div>
+    </div>
+    
+    <script>
+        function openTab(tabName, event) {
+            const contents = document.querySelectorAll('.tab-content');
+            contents.forEach(content => content.classList.remove('active'));
+            
+            const tabs = document.querySelectorAll('.nav-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+        }
+
+        function toggleComponent(id) {
+            const content = document.getElementById(id);
+            const arrow = document.getElementById('arrow-' + id);
+
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                arrow.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                arrow.classList.add('expanded');
+            }
+        }
+        
+        function toggleDescription(id) {
+            const content = document.getElementById(id);
+            const arrow = document.getElementById('arrow-' + id);
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                arrow.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                arrow.classList.add('expanded');
+            }
+        }
+    </script>
+        }
+    </script>
+</body>
+</html>

@@ -38,6 +38,24 @@ class TestDependencyUpdateService(unittest.TestCase):
 
         self.assertIsNone(enriched[0].get("latest_version"))
 
+    @patch("basiliskscan.updater.requests.Session.get")
+    def test_enrich_reports_progress(self, mock_get):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {"version": "4.18.2"}
+        mock_get.return_value = response
+
+        service = DependencyUpdateService()
+        deps = [{"ecosystem": "npm", "name": "express", "version_spec": "4.17.1"}]
+        progress_updates = []
+
+        service.enrich_with_latest_versions_progress(
+            deps,
+            progress_callback=progress_updates.append,
+        )
+
+        self.assertEqual(progress_updates, ["express"])
+
 
 if __name__ == "__main__":
     unittest.main()

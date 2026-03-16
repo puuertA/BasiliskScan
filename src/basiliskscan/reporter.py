@@ -7,7 +7,7 @@ import webbrowser
 import json
 import html
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 from rich.console import Console
 from deep_translator import GoogleTranslator
 
@@ -1957,7 +1957,12 @@ class ReportGenerator:
         
         return html_content
 
-    def save_report_to_file(self, report_data: Dict, output_path: str) -> str:
+    def save_report_to_file(
+        self,
+        report_data: Dict,
+        output_path: str,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> str:
         """
         Salva o relatório em arquivo HTML na pasta reports.
         
@@ -1990,6 +1995,8 @@ class ReportGenerator:
             # Cria diretório resources dentro da pasta reports se não existir
             resources_output_dir = reports_dir / "resources"
             resources_output_dir.mkdir(exist_ok=True)
+            if progress_callback:
+                progress_callback("resources")
             
             # Caminho para o logo original
             current_dir = pathlib.Path(__file__).parent.parent.parent
@@ -2004,8 +2011,12 @@ class ReportGenerator:
             
             # Salva o HTML
             html_content = self.generate_html_report(report_data)
+            if progress_callback:
+                progress_callback("html")
             with open(output_file, "w", encoding="utf-8") as fh:
                 fh.write(html_content)
+            if progress_callback:
+                progress_callback("written")
             
             return str(output_file)
                 

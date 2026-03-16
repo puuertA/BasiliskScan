@@ -1,7 +1,7 @@
 """Serviço para descoberta de versões mais recentes de dependências."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 from urllib.parse import quote
 
 import requests
@@ -18,6 +18,14 @@ class DependencyUpdateService:
 
     def enrich_with_latest_versions(self, dependencies: List[Dict]) -> List[Dict]:
         """Preenche `latest_version` nas dependências quando possível."""
+        return self.enrich_with_latest_versions_progress(dependencies)
+
+    def enrich_with_latest_versions_progress(
+        self,
+        dependencies: List[Dict],
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> List[Dict]:
+        """Preenche `latest_version` nas dependências quando possível, emitindo progresso opcional."""
         candidates = [
             dep for dep in dependencies
             if dep.get("ecosystem") in {"npm", "ionic"} and dep.get("name")
@@ -40,6 +48,8 @@ class DependencyUpdateService:
                     self._cache[package_name] = future.result()
                 except Exception:
                     self._cache[package_name] = None
+                if progress_callback:
+                    progress_callback(package_name)
 
         for dep in candidates:
             latest = self._cache.get(dep["name"])

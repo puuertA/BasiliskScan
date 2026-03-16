@@ -141,6 +141,12 @@ Todas as vulnerabilidades são normalizadas para o seguinte formato:
 ### NVD
 Obtenha uma API key em: https://nvd.nist.gov/developers/request-an-api-key
 
+Você também pode colocá-la em um arquivo `.env` no diretório atual:
+
+```env
+NVD_API_KEY=sua-nvd-api-key
+```
+
 ```python
 nvd = NVDClient(api_key="sua-nvd-api-key")
 ```

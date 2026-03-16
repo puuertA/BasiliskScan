@@ -1,12 +1,13 @@
-"""
-Utilitários para agregação de vulnerabilidades de múltiplas fontes.
-"""
+"""Utilitários para agregação de vulnerabilidades de múltiplas fontes."""
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from .base import VulnerabilitySource
+from .config import get_config
+from .nvd import NVDClient
 from .osv import OSVClient
 from .normalizer import VulnerabilityNormalizer
-from .config import get_config
 
 
 class VulnerabilityAggregator:
@@ -14,18 +15,27 @@ class VulnerabilityAggregator:
     
     def __init__(
         self,
-        use_osv: bool = True
+        use_osv: bool = True,
+        use_nvd: bool = True,
+        sources: Optional[List[VulnerabilitySource]] = None,
     ):
         """
         Inicializa o agregador.
         
         Args:
             use_osv: Usar OSV como fonte
+            use_nvd: Usar NVD como fonte
+            sources: Fontes customizadas para testes/injeção
         """
-        self.sources = []
-        
-        if use_osv:
-            self.sources.append(OSVClient())
+        self.sources = list(sources or [])
+
+        if sources is None:
+            if use_osv:
+                self.sources.append(OSVClient())
+
+            if use_nvd:
+                config = get_config()
+                self.sources.append(NVDClient(api_key=config.get_nvd_api_key()))
     
     def fetch_vulnerabilities(
         self,
@@ -46,6 +56,9 @@ class VulnerabilityAggregator:
         Returns:
             Lista de vulnerabilidades normalizadas e mescladas
         """
+        if not self.sources:
+            return []
+
         all_vulnerabilities = []
         
         if parallel:
@@ -99,13 +112,19 @@ class VulnerabilityAggregator:
                 normalized.append(
                     VulnerabilityNormalizer.normalize_osv_vulnerability(vuln_data)
                 )
+        elif isinstance(source, NVDClient):
+            for vuln_data in raw_data:
+                normalized.append(
+                    VulnerabilityNormalizer.normalize_nvd_vulnerability(vuln_data)
+                )
         
         return normalized
     
     def fetch_multiple_components(
         self,
         components: List[Dict[str, str]],
-        parallel: bool = True
+        parallel: bool = True,
+        progress_callback: Optional[Callable[[str], None]] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Busca vulnerabilidades para múltiplos componentes.
@@ -139,6 +158,8 @@ class VulnerabilityAggregator:
                     except Exception as e:
                         print(f"Erro ao buscar {comp_name}: {e}")
                         results[comp_name] = []
+                    if progress_callback:
+                        progress_callback(comp_name)
         else:
             for comp in components:
                 try:
@@ -151,6 +172,8 @@ class VulnerabilityAggregator:
                 except Exception as e:
                     print(f"Erro ao buscar {comp['name']}: {e}")
                     results[comp['name']] = []
+                if progress_callback:
+                    progress_callback(comp['name'])
         
         return results
     

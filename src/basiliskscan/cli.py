@@ -4,9 +4,12 @@
 import click
 
 from .config import APP_VERSION, APP_NAME
+from .env import load_dotenv
 from .help_text import APP_DESCRIPTION
 from .ui import BasiliskGroup, UIHelper
 from .commands import scan_command
+
+
 @click.group(
     cls=BasiliskGroup,
     invoke_without_command=True,
@@ -17,6 +20,7 @@ from .commands import scan_command
 @click.pass_context
 def cli(ctx):
     """🔍 BasiliskScan - Ferramenta Avançada de Análise de Dependências"""
+    load_dotenv()
     ui = UIHelper()
     
     # se o cara só digitou `bscan`, o Click já chamou get_help() e mostrou o logo

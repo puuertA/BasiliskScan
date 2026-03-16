@@ -93,6 +93,15 @@ bscan --version
 bscan --help
 ```
 
+### Configurando a API key do NVD
+Crie um arquivo `.env` no diretório onde você executa o `bscan`:
+
+```env
+NVD_API_KEY=sua-api-key-do-nvd
+```
+
+O BasiliskScan carrega esse arquivo automaticamente ao iniciar a CLI e usa a chave nas consultas ao NVD.
+
 ## 📖 Guia de Uso
 
 ### Comando Básico
