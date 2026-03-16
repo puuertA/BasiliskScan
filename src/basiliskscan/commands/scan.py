@@ -11,6 +11,7 @@ from ..ui import BasiliskCommand, UIHelper, validate_target_path, handle_file_sa
 from ..scanner import DependencyScanner
 from ..reporter import ReportGenerator
 from ..ingest.aggregator import VulnerabilityAggregator
+from ..updater import DependencyUpdateService
 
 
 @click.command(
@@ -88,6 +89,15 @@ def scan_command(project: str, url: Optional[str], output: str, skip_vulns: bool
     try:
         dependencies = scanner.collect_dependencies(target_path)
         ecosystems = scanner.get_project_statistics(dependencies)
+
+        if dependencies:
+            ui.console.print("[cyan]⬆️ Verificando versões mais recentes...[/cyan]")
+            try:
+                updater = DependencyUpdateService()
+                dependencies = updater.enrich_with_latest_versions(dependencies)
+            except Exception as e:
+                ui.console.print(f"[yellow]⚠️  Erro ao verificar atualizações: {str(e)}[/yellow]")
+                ui.console.print("[dim]   Continuando sem dados de versão mais recente...[/dim]")
         
         # Buscar vulnerabilidades se não for pulado
         vulnerabilities = {}

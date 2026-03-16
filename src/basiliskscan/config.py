@@ -45,6 +45,7 @@ IGNORED_DIRS: Set[str] = {
 SUPPORTED_FILES: Set[str] = {
     "package.json",
     "pom.xml",
+    "build.xml",
     "build.gradle",
     "build.gradle.kts"
 }
@@ -57,5 +58,6 @@ ECOSYSTEM_EMOJIS = {
     "npm": "📦",
     "ionic": "⚡",
     "maven": "☕",
-    "gradle": "🐘"
+    "gradle": "🐘",
+    "ant": "🐜"
 }

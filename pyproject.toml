@@ -26,3 +26,6 @@ bscan = "basiliskscan.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+basiliskscan = ["data/*.json"]

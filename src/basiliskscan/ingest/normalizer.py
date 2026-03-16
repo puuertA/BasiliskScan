@@ -18,6 +18,18 @@ class Severity(Enum):
 
 class VulnerabilityNormalizer:
     """Normaliza dados de vulnerabilidades de diferentes fontes para um formato comum."""
+
+    @staticmethod
+    def _extract_fixed_version(affected_list: List[Dict[str, Any]]) -> Optional[str]:
+        """Extrai a primeira versão corrigida informada nos ranges do advisory."""
+        for affected in affected_list:
+            for range_info in affected.get("ranges", []):
+                for event in range_info.get("events", []):
+                    fixed_version = event.get("fixed")
+                    if fixed_version:
+                        return fixed_version
+
+        return None
     
     @staticmethod
     def normalize_nvd_vulnerability(nvd_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -312,6 +324,7 @@ class VulnerabilityNormalizer:
         
         # Se tiver CVE nos aliases, usa como ID primário
         primary_id = cve_id if cve_id else vuln_id
+        fixed_version = VulnerabilityNormalizer._extract_fixed_version(affected_products)
         
         return {
             "id": primary_id,
@@ -325,6 +338,7 @@ class VulnerabilityNormalizer:
             "modified": modified,
             "references": references,
             "affected_products": affected_products,
+            "fixed_version": fixed_version,
             "cwe": weaknesses,
             "aliases": aliases,
             "osv_id": vuln_id,
@@ -420,6 +434,9 @@ class VulnerabilityNormalizer:
                 
                 # Mescla produtos afetados
                 existing["affected_products"].extend(vuln.get("affected_products", []))
+
+                if not existing.get("fixed_version") and vuln.get("fixed_version"):
+                    existing["fixed_version"] = vuln["fixed_version"]
                 
             else:
                 # Nova vulnerabilidade

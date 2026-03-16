@@ -251,6 +251,5 @@ class TestVulnerabilityNormalizer(unittest.TestCase):
         # Deve mesclar referências
         self.assertEqual(len(merged[0]["references"]), 2)
 
-
 if __name__ == "__main__":
     unittest.main()

@@ -64,8 +64,8 @@ class OSVClient(VulnerabilitySource):
         """
         if not ecosystem:
             return None
-        
-        return self.ECOSYSTEM_MAP.get(ecosystem.lower(), ecosystem)
+
+        return self.ECOSYSTEM_MAP.get(ecosystem.lower())
     
     def fetch_vulnerabilities(
         self, 
