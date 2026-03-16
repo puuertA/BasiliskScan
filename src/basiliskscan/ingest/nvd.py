@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -40,6 +41,7 @@ class NVDClient(VulnerabilitySource):
             self.REQUEST_INTERVAL_WITH_KEY if self.api_key else self.REQUEST_INTERVAL_WITHOUT_KEY
         )
         self._last_request_ts = 0.0
+        self._rate_limit_lock = Lock()
 
     def get_source_name(self) -> str:
         """Retorna o nome da fonte."""
@@ -107,11 +109,12 @@ class NVDClient(VulnerabilitySource):
         return response.json()
 
     def _respect_rate_limit(self):
-        elapsed = time.monotonic() - self._last_request_ts
-        remaining = self.request_interval - elapsed
-        if remaining > 0:
-            time.sleep(remaining)
-        self._last_request_ts = time.monotonic()
+        with self._rate_limit_lock:
+            elapsed = time.monotonic() - self._last_request_ts
+            remaining = self.request_interval - elapsed
+            if remaining > 0:
+                time.sleep(remaining)
+            self._last_request_ts = time.monotonic()
 
     def _matches_component(self, entry: Dict[str, Any], component: str, ecosystem: Optional[str]) -> bool:
         component_tokens = self._extract_component_tokens(component)

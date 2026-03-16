@@ -117,7 +117,8 @@ class ReportGenerator:
         dependencies: List[Dict], 
         ecosystems: Dict, 
         output_file: str,
-        vulnerabilities: Optional[Dict[str, List[Dict]]] = None
+        vulnerabilities: Optional[Dict[str, List[Dict]]] = None,
+        report_options: Optional[Dict[str, object]] = None,
     ) -> Dict:
         """
         Gera os dados estruturados do relatório.
@@ -150,7 +151,8 @@ class ReportGenerator:
                 "ecosystems_found": ecosystems
             },
             "dependencies": dependencies,
-            "vulnerabilities": vulnerabilities or {}
+            "vulnerabilities": vulnerabilities or {},
+            "report_options": report_options or {},
         }
     
     def _create_reports_directory(self) -> pathlib.Path:
@@ -355,6 +357,172 @@ class ReportGenerator:
 
         return []
 
+    def _component_group_scope(self, dependency: Dict) -> str:
+        """Define escopo lógico de agrupamento para evitar duplicações no relatório."""
+        declared_in = str(dependency.get("declared_in", "") or "")
+        ecosystem = str(dependency.get("ecosystem", "") or "").lower()
+
+        if not declared_in:
+            return ""
+
+        file_path = pathlib.Path(declared_in)
+        file_name = file_path.name.lower()
+
+        if ecosystem in {"npm", "ionic"} and file_name in {"package.json", "package-lock.json", "npm-shrinkwrap.json"}:
+            return str(file_path.parent)
+
+        if ecosystem == "gradle" and file_name in {"build.gradle", "build.gradle.kts", "gradle.lockfile"}:
+            return str(file_path.parent)
+
+        if ecosystem == "maven" and file_name == "pom.xml":
+            return str(file_path.parent)
+
+        return declared_in
+
+    def _build_vulnerable_components(self, dependencies: List[Dict], vulnerabilities_data: Dict[str, List[Dict]]) -> List[Dict]:
+        """Agrupa componentes vulneráveis removendo duplicações de origem equivalente."""
+        severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "UNKNOWN": 0}
+        grouped_components: Dict[tuple, Dict] = {}
+
+        for dep in dependencies:
+            dep_name = dep.get("name", "")
+            dep_vulns = self._find_dependency_vulnerabilities(dep_name, vulnerabilities_data)
+            if not dep_vulns:
+                continue
+
+            ecosystem = str(dep.get("ecosystem", "unknown") or "unknown").lower()
+            scope = self._component_group_scope(dep)
+            group_key = (dep_name.lower(), ecosystem, scope)
+
+            if group_key not in grouped_components:
+                grouped_components[group_key] = {
+                    **dep,
+                    "vulnerabilities": [],
+                    "max_severity_score": 0,
+                    "declared_in_files": set(),
+                }
+
+            grouped_entry = grouped_components[group_key]
+            declared_in = str(dep.get("declared_in", "") or "")
+            if declared_in:
+                grouped_entry["declared_in_files"].add(declared_in)
+
+            existing_ids = {
+                vuln.get("id", "")
+                for vuln in grouped_entry["vulnerabilities"]
+                if vuln.get("id")
+            }
+
+            for vulnerability in dep_vulns:
+                vulnerability_id = vulnerability.get("id", "")
+                if vulnerability_id and vulnerability_id in existing_ids:
+                    continue
+                grouped_entry["vulnerabilities"].append(vulnerability)
+                if vulnerability_id:
+                    existing_ids.add(vulnerability_id)
+
+            grouped_entry["vulnerabilities"].sort(
+                key=lambda vulnerability: severity_order.get(vulnerability.get("severity", "UNKNOWN"), 0),
+                reverse=True,
+            )
+            grouped_entry["max_severity_score"] = max(
+                [severity_order.get(vulnerability.get("severity", "UNKNOWN"), 0) for vulnerability in grouped_entry["vulnerabilities"]],
+                default=0,
+            )
+
+        vulnerable_components = list(grouped_components.values())
+        for component in vulnerable_components:
+            files = sorted(component.get("declared_in_files", set()))
+            component["declared_in"] = "<br>".join(files) if files else component.get("declared_in", "N/A")
+
+        vulnerable_components.sort(key=lambda component: component["max_severity_score"], reverse=True)
+        return vulnerable_components
+
+    def _dependency_status_key(self, dependency: Dict) -> tuple:
+        """Gera chave estável para lookup de status por componente e escopo."""
+        return (
+            str(dependency.get("name", "") or "").lower(),
+            str(dependency.get("ecosystem", "unknown") or "unknown").lower(),
+            self._component_group_scope(dependency),
+        )
+
+    def _build_grouped_dependencies(self, dependencies: List[Dict]) -> List[Dict]:
+        """Agrupa dependências por componente+ecossistema+escopo para reduzir ruído da aba."""
+        grouped: Dict[tuple, Dict] = {}
+
+        for dep in dependencies:
+            key = self._dependency_status_key(dep)
+
+            if key not in grouped:
+                grouped[key] = {
+                    **dep,
+                    "declared_in_files": set(),
+                    "version_specs": set(),
+                    "latest_versions": set(),
+                    "has_direct": False,
+                    "has_transitive": False,
+                    "instance_count": 0,
+                }
+
+            entry = grouped[key]
+            entry["instance_count"] += 1
+
+            declared_in = str(dep.get("declared_in", "") or "")
+            if declared_in:
+                entry["declared_in_files"].add(declared_in)
+
+            version_spec = str(dep.get("version_spec", "") or "").strip()
+            if version_spec:
+                entry["version_specs"].add(version_spec)
+
+            latest_version = str(dep.get("latest_version", "") or "").strip()
+            if latest_version:
+                entry["latest_versions"].add(latest_version)
+                if not entry.get("latest_version"):
+                    entry["latest_version"] = latest_version
+
+            dependency_type = str(dep.get("dependency_type", "") or "").strip().lower()
+            is_transitive = dep.get("is_transitive") is True or dependency_type == "transitive"
+            if is_transitive:
+                entry["has_transitive"] = True
+            else:
+                entry["has_direct"] = True
+
+            if dependency_type == "direct":
+                entry["version_spec"] = dep.get("version_spec", entry.get("version_spec", ""))
+
+        grouped_dependencies = list(grouped.values())
+        for dep in grouped_dependencies:
+            files = sorted(dep.get("declared_in_files", set()))
+            dep["declared_in"] = "<br>".join(files) if files else dep.get("declared_in", "N/A")
+
+            versions = sorted(dep.get("version_specs", set()))
+            if len(versions) > 1:
+                dep["version_spec"] = " / ".join(versions)
+            elif len(versions) == 1:
+                dep["version_spec"] = versions[0]
+
+            latest_versions = sorted(dep.get("latest_versions", set()))
+            if latest_versions:
+                dep["latest_version"] = latest_versions[-1]
+
+            has_direct = dep.get("has_direct", False)
+            has_transitive = dep.get("has_transitive", False)
+            if has_direct and has_transitive:
+                dep["relationship"] = "mixed"
+            elif has_transitive:
+                dep["relationship"] = "transitive"
+            else:
+                dep["relationship"] = "direct"
+
+        grouped_dependencies.sort(
+            key=lambda dep: (
+                str(dep.get("ecosystem", "unknown") or "unknown").lower(),
+                str(dep.get("name", "") or "").lower(),
+            )
+        )
+        return grouped_dependencies
+
     def _get_recommended_version(self, dep: Dict, dep_vulns: List[Dict]) -> Optional[str]:
         """Retorna uma versão corrigida recomendada quando disponível."""
         current_version = (dep.get("version_spec") or "").strip()
@@ -370,6 +538,21 @@ class ReportGenerator:
 
         return None
 
+    def _build_dependency_statuses(
+        self,
+        dependencies: List[Dict],
+        vulnerabilities_data: Dict[str, List[Dict]],
+    ) -> Dict[tuple, Dict[str, object]]:
+        """Gera lookup de status usando a coleção já exibida no relatório."""
+        statuses: Dict[tuple, Dict[str, object]] = {}
+
+        for dep in dependencies:
+            dep_name = dep.get("name", "")
+            dep_vulns = self._find_dependency_vulnerabilities(dep_name, vulnerabilities_data)
+            statuses[self._dependency_status_key(dep)] = self._build_dependency_status(dep, dep_vulns)
+
+        return statuses
+
     def _build_dependency_status(self, dep: Dict, dep_vulns: List[Dict]) -> Dict[str, object]:
         """Calcula o status visual de uma dependência no relatório."""
         recommended_version = self._get_recommended_version(dep, dep_vulns)
@@ -383,12 +566,14 @@ class ReportGenerator:
                 "kind": "medium",
                 "label": "Vulnerável",
                 "icon": "bi bi-shield-exclamation",
+                "tooltip": "O componente possui vulnerabilidades conhecidas publicamente e exige atenção.",
             })
         else:
             badges.append({
                 "kind": "low",
                 "label": "Seguro",
                 "icon": "bi bi-shield-check",
+                "tooltip": "Nenhuma vulnerabilidade conhecida foi encontrada para este componente nas fontes consultadas.",
             })
 
         if has_update:
@@ -396,6 +581,7 @@ class ReportGenerator:
                 "kind": "update",
                 "label": "Atualização disponível",
                 "icon": "bi bi-arrow-up-right-circle-fill",
+                "tooltip": "Existe uma versão mais recente ou corrigida recomendada para este componente.",
             })
 
         return {
@@ -425,10 +611,82 @@ class ReportGenerator:
         """Renderiza uma ou mais badges de status para a tabela."""
         badges = status.get("badges", [])
         badges_html = "".join(
-            f'<span class="severity-badge {badge["kind"]}"><i class="{badge["icon"]}"></i> {badge["label"]}</span>'
+            f'<span class="severity-badge {badge["kind"]}"><i class="{badge["icon"]}"></i> {badge["label"]}<span class="tooltip">{html.escape(badge.get("tooltip", ""))}</span></span>'
             for badge in badges
         )
         return f'<div class="status-badges">{badges_html}</div>'
+
+    def _render_dependency_relationship_badge(self, dependency: Dict) -> str:
+        """Renderiza badge de relacionamento direta/transitiva/mista."""
+        relationship = str(dependency.get("relationship", "direct") or "direct").lower()
+        if relationship == "transitive":
+            return (
+                '<span class="severity-badge transitive">'
+                '<i class="bi bi-diagram-3"></i> Transitiva'
+                '<span class="tooltip">Dependência instalada indiretamente por outra biblioteca do projeto.</span>'
+                '</span>'
+            )
+        if relationship == "mixed":
+            return (
+                '<span class="severity-badge mixed">'
+                '<i class="bi bi-intersect"></i> Mista'
+                '<span class="tooltip">Componente aparece como dependência direta e também transitiva em outros manifestos/locks.</span>'
+                '</span>'
+            )
+        return (
+            '<span class="severity-badge direct">'
+            '<i class="bi bi-record-circle"></i> Direta'
+            '<span class="tooltip">Dependência declarada explicitamente no manifesto do projeto (ex.: package.json).</span>'
+            '</span>'
+        )
+
+    def _get_cvss_rating_label(self, score: float, version: str) -> str:
+        """Retorna a classificação qualitativa considerando a versão do CVSS."""
+        normalized_version = str(version or "").strip().lower()
+
+        if score <= 0:
+            return "Nenhum"
+
+        if normalized_version.startswith("2"):
+            if score <= 3.9:
+                return "Baixo"
+            if score <= 6.9:
+                return "Médio"
+            return "Alto"
+
+        if score <= 3.9:
+            return "Baixo"
+        if score <= 6.9:
+            return "Médio"
+        if score <= 8.9:
+            return "Alto"
+        return "Crítico"
+
+    def _build_cvss_tooltip(self, vulnerability: Dict) -> str:
+        """Monta tooltip explicativo do CVSS com faixas por versão."""
+        cvss = vulnerability.get("cvss") or {}
+        version = str(cvss.get("version") or "N/A")
+        score = float(vulnerability.get("score") or cvss.get("score") or 0.0)
+        rating = self._get_cvss_rating_label(score, version)
+
+        return (
+            '<div class="cvss-tooltip-content">'
+            '<div class="cvss-tooltip-title">O que é CVSS?</div>'
+            '<div class="cvss-tooltip-text">CVSS (Common Vulnerability Scoring System) é um padrão usado para medir a gravidade técnica de uma vulnerabilidade em uma escala de 0.0 a 10.0.</div>'
+            f'<div class="cvss-tooltip-current">Métrica deste item: CVSS v{html.escape(version)} · score {score:.1f} · gravidade {html.escape(rating)}</div>'
+            '<table class="cvss-tooltip-table">'
+            '<thead><tr><th>Classificação</th><th>CVSS v2.0</th><th>CVSS v3.x</th><th>CVSS v4.0</th></tr></thead>'
+            '<tbody>'
+            '<tr><td>Nenhum*</td><td>0,0</td><td>0,0</td><td>0,0</td></tr>'
+            '<tr><td>Baixo</td><td>0,0-3,9</td><td>0,1-3,9</td><td>0,1-3,9</td></tr>'
+            '<tr><td>Médio</td><td>4,0-6,9</td><td>4,0-6,9</td><td>4,0-6,9</td></tr>'
+            '<tr><td>Alto</td><td>7,0-10,0</td><td>7,0-8,9</td><td>7,0-8,9</td></tr>'
+            '<tr><td>Crítico</td><td>—</td><td>9,0-10,0</td><td>9,0-10,0</td></tr>'
+            '</tbody>'
+            '</table>'
+            '<div class="cvss-tooltip-footnote">* Em CVSS, score 0.0 indica ausência de impacto mensurável.</div>'
+            '</div>'
+        )
 
     def generate_html_report(self, report_data: Dict) -> str:
         """
@@ -444,28 +702,14 @@ class ReportGenerator:
         project_info = report_data["project_info"]
         dependencies = report_data["dependencies"]
         vulnerabilities_data = report_data.get("vulnerabilities", {})
+        report_options = report_data.get("report_options", {})
+        transitive_hidden_count = int(report_options.get("transitive_hidden_count", 0) or 0)
+        grouped_dependencies = self._build_grouped_dependencies(dependencies)
         
         # Identificar componentes vulneráveis e ordenar por severidade
-        vulnerable_components = []
-        dependency_statuses = {}
-        for dep in dependencies:
-            dep_name = dep.get('name', '')
-            dep_vulns = self._find_dependency_vulnerabilities(dep_name, vulnerabilities_data)
-            dependency_statuses[dep_name.lower()] = self._build_dependency_status(dep, dep_vulns)
-            
-            if dep_vulns:
-                # Calcular severidade máxima
-                severity_order = {'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, 'UNKNOWN': 0}
-                max_severity = max([severity_order.get(v.get('severity', 'UNKNOWN'), 0) for v in dep_vulns])
-                
-                vulnerable_components.append({
-                    **dep,
-                    'vulnerabilities': sorted(dep_vulns, key=lambda v: severity_order.get(v.get('severity', 'UNKNOWN'), 0), reverse=True),
-                    'max_severity_score': max_severity
-                })
-        
-        # Ordenar componentes por severidade
-        vulnerable_components.sort(key=lambda x: x['max_severity_score'], reverse=True)
+        dependency_statuses = self._build_dependency_statuses(grouped_dependencies, vulnerabilities_data)
+
+        vulnerable_components = self._build_vulnerable_components(dependencies, vulnerabilities_data)
         
         # Calcular estatísticas de vulnerabilidades
         total_vulnerabilities = sum(len(vulns) for vulns in vulnerabilities_data.values())
@@ -488,8 +732,8 @@ class ReportGenerator:
 
         outdated_components_count = sum(
             1
-            for dep in dependencies
-            if dependency_statuses.get(dep.get('name', '').lower(), {}).get('has_update')
+            for dep in grouped_dependencies
+            if dependency_statuses.get(self._dependency_status_key(dep), {}).get('has_update')
         )
 
         critical_severity_description = self._get_severity_description('CRITICAL')
@@ -907,6 +1151,13 @@ class ReportGenerator:
             font-size: 1em;
             color: #e0e0e0;
             font-weight: 600;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }}
+
+        .info-value.path {{
+            line-height: 1.45;
         }}
         
         .info-value.version {{
@@ -1017,11 +1268,30 @@ class ReportGenerator:
             color: #2d3436;
         }}
 
+        .severity-badge.direct {{
+            background: #2ecc71;
+            color: white;
+        }}
+
+        .severity-badge.transitive {{
+            background: #8e44ad;
+            color: white;
+        }}
+
+        .severity-badge.mixed {{
+            background: #16a085;
+            color: white;
+        }}
+
         .status-badges {{
             display: inline-flex;
             flex-wrap: wrap;
             gap: 6px;
             align-items: center;
+        }}
+
+        .status-badges + .status-badges {{
+            margin-top: 6px;
         }}
         
         .vuln-meta {{
@@ -1097,6 +1367,12 @@ class ReportGenerator:
             word-break: break-word;
             text-transform: none;
         }}
+
+        .tooltip.tooltip-cvss {{
+            width: 520px;
+            max-width: min(520px, calc(100vw - 40px));
+            padding: 14px;
+        }}
         
         .tooltip::after {{
             content: "";
@@ -1129,6 +1405,50 @@ class ReportGenerator:
             background: rgba(255,255,255,0.1);
             border-radius: 5px;
             font-weight: 600;
+            position: relative;
+            cursor: help;
+        }}
+
+        .cvss-score:hover .tooltip {{
+            visibility: visible;
+            opacity: 1;
+        }}
+
+        .cvss-tooltip-title {{
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }}
+
+        .cvss-tooltip-text,
+        .cvss-tooltip-current,
+        .cvss-tooltip-footnote {{
+            margin-bottom: 10px;
+        }}
+
+        .cvss-tooltip-current {{
+            color: #8cc8ff;
+            font-weight: 600;
+        }}
+
+        .cvss-tooltip-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            font-size: 0.92em;
+        }}
+
+        .cvss-tooltip-table th,
+        .cvss-tooltip-table td {{
+            padding: 6px 8px;
+            border: 1px solid rgba(255,255,255,0.08);
+            text-align: left;
+            vertical-align: top;
+        }}
+
+        .cvss-tooltip-table th {{
+            color: #ffffff;
+            background: rgba(74, 144, 217, 0.15);
         }}
         
         .vuln-description {{
@@ -1433,6 +1753,16 @@ class ReportGenerator:
             padding: 20px;
             margin-bottom: 15px;
         }}
+
+        .dependency-note {{
+            margin-bottom: 16px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid #f39c12;
+            background: rgba(243, 156, 18, 0.12);
+            color: #f5d28a;
+            line-height: 1.4;
+        }}
         
         .recommendation-card .title {{
             font-size: 1.1em;
@@ -1511,7 +1841,7 @@ class ReportGenerator:
                 <i class="bi bi-bar-chart-line"></i> Visão Geral
             </button>
             <button class="nav-tab" onclick="openTab('dependencies', event)">
-                <i class="bi bi-box-seam"></i> Dependências ({project_info['dependency_count']})
+                <i class="bi bi-box-seam"></i> Dependências ({len(grouped_dependencies)})
             </button>
             <button class="nav-tab" onclick="openTab('vulnerabilities', event)">
                 <i class="bi bi-shield-exclamation"></i> Vulnerabilidades ({total_vulnerabilities} em {len(vulnerable_components)} componente(s))
@@ -1611,7 +1941,17 @@ class ReportGenerator:
         <div id="dependencies" class="tab-content">
             <div class="section">
                 <h2 class="section-title"><i class="bi bi-box-seam"></i> Dependências Identificadas</h2>
-                
+                '''
+
+        if transitive_hidden_count > 0:
+            html_content += f'''
+                <div class="dependency-note">
+                    <i class="bi bi-info-circle"></i>
+                    {transitive_hidden_count} dependência(s) transitiva(s) foram ocultadas neste relatório.
+                    Use <code>--include-transitive</code> para incluir também as transitivas.
+                </div>'''
+
+        html_content += '''
                 <div class="table-wrapper">
                     <table>
                         <thead>
@@ -1625,12 +1965,13 @@ class ReportGenerator:
                         </thead>
                         <tbody>'''
         
-        for dep in dependencies:
+        for dep in grouped_dependencies:
             dep_name = dep.get('name', 'N/A')
             dep_vulns = self._find_dependency_vulnerabilities(dep_name, vulnerabilities_data)
-            status = dependency_statuses.get(dep_name.lower()) or self._build_dependency_status(dep, dep_vulns)
+            status = dependency_statuses.get(self._dependency_status_key(dep)) or self._build_dependency_status(dep, dep_vulns)
             version_html = self._format_dependency_version(dep, status)
             status_badge = self._render_status_badges(status)
+            relationship_badge = self._render_dependency_relationship_badge(dep)
 
             ecosystem = dep.get('ecosystem', 'unknown')
             html_content += f'''
@@ -1639,7 +1980,7 @@ class ReportGenerator:
                                 <td>{version_html}</td>
                                 <td><span class="ecosystem-badge {ecosystem}">{ecosystem}</span></td>
                                 <td>{dep.get('declared_in', 'N/A')}</td>
-                                <td>{status_badge}</td>
+                                <td>{status_badge}<div class="status-badges">{relationship_badge}</div></td>
                             </tr>'''
         
         html_content += '''
@@ -1714,7 +2055,7 @@ class ReportGenerator:
                         </div>
                         <div class="info-item">
                             <div class="info-label"><i class="bi bi-file-earmark-text"></i> Declarado em</div>
-                            <div class="info-value">{comp.get('declared_in', 'N/A')}</div>
+                            <div class="info-value path">{comp.get('declared_in', 'N/A')}</div>
                         </div>
                     </div>
                     
@@ -1727,6 +2068,7 @@ class ReportGenerator:
                     severity_description = self._get_severity_description(severity.upper())
                     score = vuln.get('score', 0)
                     description = vuln.get('description', 'Sem descrição disponível')
+                    cvss_tooltip = self._build_cvss_tooltip(vuln)
                     
                     # Converter Markdown para HTML
                     description_html = self._markdown_to_html(description)
@@ -1760,7 +2102,7 @@ class ReportGenerator:
                                     <i class="bi bi-tag"></i> {vuln_type}
                                     <span class="tooltip">{vuln_explanation}</span>
                                 </span>
-                                <span class="cvss-score"><i class="bi bi-speedometer2"></i> CVSS: {score}</span>
+                                <span class="cvss-score"><i class="bi bi-speedometer2"></i> CVSS: {score}<span class="tooltip tooltip-cvss">{cvss_tooltip}</span></span>
                             </div>
                             
                             <div class="vuln-description">

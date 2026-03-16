@@ -59,16 +59,17 @@ class VulnerabilityNormalizer:
         severity = Severity.UNKNOWN.value
         score = 0.0
         
-        # Tenta obter CVSS v3.1 primeiro, depois v3.0, depois v2.0
-        for version in ["cvssMetricV31", "cvssMetricV30", "cvssMetricV2"]:
+        # Prefere CVSS 4.0, depois v3.1, v3.0 e por fim v2.0
+        for version in ["cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"]:
             if version in metrics and metrics[version]:
                 metric = metrics[version][0]
                 cvss = metric.get("cvssData", {})
+                base_severity = cvss.get("baseSeverity") or metric.get("baseSeverity") or "UNKNOWN"
                 cvss_data = {
                     "version": cvss.get("version", ""),
                     "vector": cvss.get("vectorString", ""),
                     "score": cvss.get("baseScore", 0.0),
-                    "severity": cvss.get("baseSeverity", "UNKNOWN")
+                    "severity": base_severity
                 }
                 score = cvss_data["score"]
                 severity = VulnerabilityNormalizer._normalize_severity(
@@ -419,9 +420,23 @@ class VulnerabilityNormalizer:
                     sources.append(vuln["source"])
                 existing["sources"] = sources
                 
-                # Usa a severidade mais alta
-                if VulnerabilityNormalizer._severity_level(vuln["severity"]) > \
-                   VulnerabilityNormalizer._severity_level(existing["severity"]):
+                existing_level = VulnerabilityNormalizer._severity_level(existing["severity"])
+                incoming_level = VulnerabilityNormalizer._severity_level(vuln["severity"])
+                existing_score = float(existing.get("score") or 0.0)
+                incoming_score = float(vuln.get("score") or 0.0)
+                existing_cvss = existing.get("cvss") or {}
+                incoming_cvss = vuln.get("cvss") or {}
+
+                # Usa a severidade mais alta e também substitui quando a nova fonte
+                # trouxer score/CVSS mais completo para a mesma severidade.
+                should_replace_cvss = (
+                    incoming_level > existing_level
+                    or (incoming_level == existing_level and incoming_score > existing_score)
+                    or (existing_score <= 0 and incoming_score > 0)
+                    or (not existing_cvss and incoming_cvss)
+                )
+
+                if should_replace_cvss:
                     existing["severity"] = vuln["severity"]
                     existing["cvss"] = vuln["cvss"]
                     existing["score"] = vuln["score"]

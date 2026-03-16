@@ -44,10 +44,13 @@ IGNORED_DIRS: Set[str] = {
 # Arquivos de dependências suportados
 SUPPORTED_FILES: Set[str] = {
     "package.json",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
     "pom.xml",
     "build.xml",
     "build.gradle",
-    "build.gradle.kts"
+    "build.gradle.kts",
+    "gradle.lockfile",
 }
 
 # Configurações de output padrão

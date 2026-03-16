@@ -39,6 +39,12 @@ class TestJavaParser(unittest.TestCase):
         self.assertEqual(dependencies[0]["name"], "org.springframework:spring-web")
         self.assertEqual(dependencies[0]["version_spec"], "6.1.5")
         self.assertEqual(dependencies[0]["scope"], "compile")
+        self.assertEqual(dependencies[0]["dependency_type"], "direct")
+        self.assertFalse(dependencies[0]["is_transitive"])
+        self.assertEqual(
+            dependencies[0]["purl"],
+            "pkg:maven/org.springframework/spring-web@6.1.5",
+        )
 
     def test_parse_maven_without_namespace(self):
         pom_file = self.temp_dir / "pom.xml"
@@ -88,6 +94,10 @@ dependencies {
         self.assertEqual(dependencies[1]["scope"], "testImplementation")
         self.assertEqual(dependencies[2]["name"], "mysql:mysql-connector-java")
         self.assertEqual(dependencies[2]["scope"], "runtimeOnly")
+        self.assertEqual(
+            dependencies[0]["purl"],
+            "pkg:maven/org.springframework/spring-web@6.1.5",
+        )
 
     def test_parse_gradle_kotlin_named_arguments(self):
         gradle_file = self.temp_dir / "build.gradle.kts"
@@ -129,6 +139,29 @@ javac.classpath=${file.reference.log4j-api-2.17.1.jar}:${file.reference.mysql-co
         self.assertEqual(dependencies[0]["version_spec"], "2.17.1")
         self.assertEqual(dependencies[1]["name"], "mysql-connector-java")
         self.assertEqual(dependencies[1]["version_spec"], "8.0.20")
+        self.assertEqual(dependencies[0]["purl"], "pkg:generic/log4j-api@2.17.1")
+
+    def test_parse_gradle_lockfile_as_transitive_dependencies(self):
+        lockfile = self.temp_dir / "gradle.lockfile"
+        lockfile.write_text(
+            """# This is a Gradle generated file
+org.springframework:spring-core:6.1.6=compileClasspath,runtimeClasspath
+ch.qos.logback:logback-classic:1.4.14=runtimeClasspath
+""",
+            encoding="utf-8",
+        )
+
+        dependencies = self.parser.parse(lockfile)
+
+        self.assertEqual(len(dependencies), 2)
+        spring_core = next(dep for dep in dependencies if dep["name"] == "org.springframework:spring-core")
+        self.assertEqual(spring_core["dependency_type"], "transitive")
+        self.assertTrue(spring_core["is_transitive"])
+        self.assertEqual(spring_core["scope"], "compileClasspath")
+        self.assertEqual(
+            spring_core["purl"],
+            "pkg:maven/org.springframework/spring-core@6.1.6",
+        )
 
 
 if __name__ == "__main__":

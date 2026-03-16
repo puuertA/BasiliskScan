@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional
 
 from .base import BaseParser
+from .purl import build_purl
 
 
 class JavaParser(BaseParser):
@@ -38,7 +39,7 @@ class JavaParser(BaseParser):
     
     def get_supported_files(self) -> List[str]:
         """Retorna lista de arquivos suportados."""
-        return ["pom.xml", "build.gradle", "build.gradle.kts", "build.xml"]
+        return ["pom.xml", "build.gradle", "build.gradle.kts", "build.xml", "gradle.lockfile"]
     
     def parse(self, path: pathlib.Path) -> List[Dict]:
         """
@@ -56,6 +57,8 @@ class JavaParser(BaseParser):
             return self._parse_gradle(path)
         elif path.name == "build.xml":
             return self._parse_ant(path)
+        elif path.name == "gradle.lockfile":
+            return self._parse_gradle_lockfile(path)
         else:
             raise ValueError(f"Arquivo não suportado: {path.name}")
     
@@ -95,6 +98,9 @@ class JavaParser(BaseParser):
                     "version_spec": version_spec,
                     "declared_in": str(path),
                     "scope": scope,
+                    "dependency_type": "direct",
+                    "is_transitive": False,
+                    "purl": build_purl("maven", f"{group_id}:{artifact_id}", version_spec),
                 })
         
         return deps
@@ -228,7 +234,67 @@ class JavaParser(BaseParser):
             "declared_in": str(path),
             "line_number": line_num,
             "scope": scope,
+            "dependency_type": "direct",
+            "is_transitive": False,
+            "purl": build_purl("gradle", f"{group_id}:{artifact_id}", version_spec),
         }
+
+    def _parse_gradle_lockfile(self, path: pathlib.Path) -> List[Dict]:
+        """Extrai dependências bloqueadas de `gradle.lockfile` (normalmente inclui transitivas)."""
+        try:
+            content = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Arquivo gradle.lockfile não encontrado: {path}")
+        except UnicodeDecodeError as e:
+            raise UnicodeDecodeError(
+                e.encoding,
+                e.object,
+                e.start,
+                e.end,
+                f"Erro de encoding ao ler {path}: {e.reason}",
+            )
+
+        deps: List[Dict] = []
+        seen = set()
+
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            dependency_part, _, scope_part = line.partition("=")
+            coordinates = dependency_part.strip()
+            segments = coordinates.split(":")
+            if len(segments) < 3:
+                continue
+
+            group_id = segments[0].strip()
+            artifact_id = segments[1].strip()
+            version_spec = ":".join(segments[2:]).strip()
+
+            if not group_id or not artifact_id or not version_spec:
+                continue
+
+            scope = scope_part.split(",", 1)[0].strip() if scope_part else "locked"
+            key = (group_id, artifact_id, version_spec, scope)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            name = f"{group_id}:{artifact_id}"
+            deps.append({
+                "ecosystem": "gradle",
+                "name": name,
+                "version_spec": version_spec,
+                "declared_in": str(path),
+                "scope": scope,
+                "section": "lockfile",
+                "dependency_type": "transitive",
+                "is_transitive": True,
+                "purl": build_purl("gradle", name, version_spec),
+            })
+
+        return deps
 
     def _parse_ant(self, path: pathlib.Path) -> List[Dict]:
         """Extrai dependências declaradas em projetos Ant/NetBeans."""
@@ -317,4 +383,7 @@ class JavaParser(BaseParser):
             "scope": "compile",
             "file_reference": property_name,
             "source_path": str((build_file.parent / jar_path).resolve()),
+            "dependency_type": "direct",
+            "is_transitive": False,
+            "purl": build_purl("ant", artifact, version_spec),
         }

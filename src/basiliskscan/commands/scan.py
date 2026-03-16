@@ -15,6 +15,23 @@ from ..ingest.aggregator import VulnerabilityAggregator
 from ..updater import DependencyUpdateService
 
 
+def _is_transitive_dependency(dep: dict) -> bool:
+    """Identifica se uma dependência é transitiva."""
+    if dep.get("is_transitive") is True:
+        return True
+
+    dependency_type = str(dep.get("dependency_type", "")).strip().lower()
+    return dependency_type == "transitive"
+
+
+def _filter_scan_dependencies(dependencies: list[dict], include_transitive: bool) -> list[dict]:
+    """Filtra dependências usadas no scan, mantendo transitivas apenas quando solicitado."""
+    if include_transitive:
+        return dependencies
+
+    return [dep for dep in dependencies if not _is_transitive_dependency(dep)]
+
+
 @click.command(
     cls=BasiliskCommand,
     help=SCAN_HELP,
@@ -55,7 +72,19 @@ from ..updater import DependencyUpdateService
     default=False,
     help="Pular a análise de vulnerabilidades (mais rápido)"
 )
-def scan_command(project: str, url: Optional[str], output: str, skip_vulns: bool):
+@click.option(
+    "--include-transitive",
+    is_flag=True,
+    default=False,
+    help="Incluir dependências transitivas no relatório e na busca de vulnerabilidades",
+)
+def scan_command(
+    project: str,
+    url: Optional[str],
+    output: str,
+    skip_vulns: bool,
+    include_transitive: bool,
+):
     """
     🚀 Executa uma varredura completa de dependências no projeto alvo.
     
@@ -88,7 +117,18 @@ def scan_command(project: str, url: Optional[str], output: str, skip_vulns: bool
     
     # Executa a varredura
     try:
-        dependencies = scanner.collect_dependencies(target_path)
+        all_dependencies = scanner.collect_dependencies(target_path)
+        dependencies = _filter_scan_dependencies(all_dependencies, include_transitive)
+        filtered_count = 0
+
+        if not include_transitive:
+            filtered_count = len(all_dependencies) - len(dependencies)
+            if filtered_count > 0:
+                ui.console.print(
+                    f"[dim]↪ Ignorando {filtered_count} dependência(s) transitiva(s). "
+                    "Use --include-transitive para incluir.[/dim]"
+                )
+
         ecosystems = scanner.get_project_statistics(dependencies)
 
         if dependencies:
@@ -201,7 +241,15 @@ def scan_command(project: str, url: Optional[str], output: str, skip_vulns: bool
         
         # Gera e salva o relatório
         report_data = reporter.generate_report_data(
-            target_path, dependencies, ecosystems, output, vulnerabilities
+            target_path,
+            dependencies,
+            ecosystems,
+            output,
+            vulnerabilities,
+            report_options={
+                "include_transitive": include_transitive,
+                "transitive_hidden_count": filtered_count,
+            },
         )
         
         try:

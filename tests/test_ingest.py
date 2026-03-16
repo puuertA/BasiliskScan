@@ -217,6 +217,7 @@ class TestVulnerabilityNormalizer(unittest.TestCase):
         self.assertEqual(normalized["source"], "OSS Index")
         self.assertEqual(normalized["severity"], Severity.HIGH.value)
         self.assertEqual(normalized["score"], 7.5)
+
     
     def test_merge_vulnerabilities(self):
         """Testa mesclagem de vulnerabilidades."""
@@ -250,6 +251,7 @@ class TestVulnerabilityNormalizer(unittest.TestCase):
         self.assertEqual(merged[0]["severity"], Severity.CRITICAL.value)
         # Deve mesclar referências
         self.assertEqual(len(merged[0]["references"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
