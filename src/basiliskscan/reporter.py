@@ -139,7 +139,7 @@ class ReportGenerator:
                 "tool": APP_NAME,
                 "version": APP_VERSION,
                 "scan_date": datetime.now().isoformat(),
-                "scan_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "scan_timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                 "target_path": str(target_path),
                 "output_file": output_file,
                 "duration_seconds": round(self.scan_duration, 2)
