@@ -36,6 +36,8 @@ class JavaParser(BaseParser):
     GRADLE_MAP_DEPENDENCY_RE = re.compile(
         r"^\s*(?P<scope>[A-Za-z_][\w.-]*)\s*(?:\(\s*)?(?=.*\bgroup\s*[:=]\s*[\"'](?P<group>[^\"']+)[\"'])(?=.*\bname\s*[:=]\s*[\"'](?P<artifact>[^\"']+)[\"'])(?:(?=.*\bversion\s*[:=]\s*[\"'](?P<version>[^\"']+)[\"']))?.*",
     )
+
+    ANT_PROPERTY_TOKEN_RE = re.compile(r"\$\{([^}]+)\}")
     
     def get_supported_files(self) -> List[str]:
         """Retorna lista de arquivos suportados."""
@@ -304,6 +306,7 @@ class JavaParser(BaseParser):
 
         properties = self._read_properties_file(properties_path)
         deps = []
+        seen_keys = set()
 
         for key, value in properties.items():
             if not key.startswith("file.reference."):
@@ -315,6 +318,30 @@ class JavaParser(BaseParser):
 
             dependency = self._build_ant_dependency(path, key, value)
             if dependency is not None:
+                deps.append(dependency)
+                seen_keys.add((dependency["name"], dependency.get("version_spec"), dependency["dependency_type"]))
+
+        classpath_properties = {
+            key: value
+            for key, value in properties.items()
+            if key.endswith(".classpath")
+        }
+
+        for classpath_property, classpath_value in classpath_properties.items():
+            for token in self.ANT_PROPERTY_TOKEN_RE.findall(classpath_value):
+                dependency = self._build_ant_classpath_dependency(path, token, classpath_property)
+                if dependency is None:
+                    continue
+
+                unique_key = (
+                    dependency["name"],
+                    dependency.get("version_spec"),
+                    dependency["dependency_type"],
+                )
+                if unique_key in seen_keys:
+                    continue
+
+                seen_keys.add(unique_key)
                 deps.append(dependency)
 
         return deps
@@ -367,13 +394,7 @@ class JavaParser(BaseParser):
         jar_name = jar_path.name
         stem = jar_name[:-4] if jar_name.lower().endswith(".jar") else jar_name
 
-        match = re.match(r"^(?P<artifact>.+)-(?P<version>\d[\w.+-]*)$", stem)
-        if match:
-            artifact = match.group("artifact")
-            version_spec = match.group("version")
-        else:
-            artifact = stem
-            version_spec = None
+        artifact, version_spec = self._split_ant_name_and_version(stem)
 
         return {
             "ecosystem": "ant",
@@ -387,3 +408,47 @@ class JavaParser(BaseParser):
             "is_transitive": False,
             "purl": build_purl("ant", artifact, version_spec),
         }
+
+    def _build_ant_classpath_dependency(
+        self,
+        build_file: pathlib.Path,
+        token: str,
+        classpath_property: str,
+    ) -> Optional[Dict]:
+        """Converte token de classpath em dependência, marcando libs.* como transitiva."""
+        if token.startswith("file.reference."):
+            return None
+
+        if not (token.startswith("libs.") and token.endswith(".classpath")):
+            return None
+
+        library_name = token[len("libs.") : -len(".classpath")]
+        if not library_name:
+            return None
+
+        normalized_library_name = library_name.replace("_", "-")
+        artifact, version_spec = self._split_ant_name_and_version(normalized_library_name)
+        dependency_type = "transitive"
+        is_transitive = True
+
+        return {
+            "ecosystem": "ant",
+            "name": artifact,
+            "version_spec": version_spec,
+            "declared_in": str(build_file),
+            "scope": "compile",
+            "source_property": classpath_property,
+            "file_reference": token,
+            "dependency_type": dependency_type,
+            "is_transitive": is_transitive,
+            "purl": build_purl("ant", artifact, version_spec),
+        }
+
+    def _split_ant_name_and_version(self, value: str) -> tuple[str, Optional[str]]:
+        """Extrai artefato e versão de identificadores comuns de dependências Ant."""
+        normalized = value.strip()
+        match = re.match(r"^(?P<artifact>.+?)[-_](?P<version>\d[\w.+-]*)$", normalized)
+        if match:
+            return match.group("artifact"), match.group("version")
+
+        return normalized, None

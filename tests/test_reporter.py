@@ -1,7 +1,11 @@
 """Testes para helpers do relatório."""
 
 import pathlib
+import re
 import unittest
+from unittest.mock import patch
+
+from rich.console import Console
 
 from basiliskscan.reporter import ReportGenerator
 
@@ -325,6 +329,119 @@ class TestReporter(unittest.TestCase):
         html = self.reporter.generate_html_report(report_data)
 
         self.assertNotIn("dependência(s) transitiva(s) foram ocultadas", html)
+
+    def test_generate_report_data_uses_displayed_dependencies_count(self):
+        displayed_dependencies = [
+            {
+                "name": "react",
+                "ecosystem": "npm",
+                "version_spec": "^18.0.0",
+                "declared_in": "C:/repo/frontend/package.json",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            }
+        ]
+        all_dependencies = displayed_dependencies + [
+            {
+                "name": "scheduler",
+                "ecosystem": "npm",
+                "version_spec": "0.23.0",
+                "declared_in": "C:/repo/frontend/package-lock.json",
+                "dependency_type": "transitive",
+                "is_transitive": True,
+            }
+        ]
+
+        report_data = self.reporter.generate_report_data(
+            target_path=pathlib.Path("C:/repo/frontend"),
+            dependencies=displayed_dependencies,
+            ecosystems={"npm": 1},
+            output_file="report.html",
+            vulnerabilities={},
+            all_dependencies=all_dependencies,
+            report_options={"include_transitive": False, "transitive_hidden_count": 1},
+        )
+
+        html = self.reporter.generate_html_report(report_data)
+
+        self.assertEqual(report_data["project_info"]["dependency_count"], 1)
+        self.assertIn('<i class="bi bi-box-seam"></i> Dependências (1)', html)
+        self.assertIn('<div class="number">1</div>', html)
+
+    def test_generate_html_report_overview_total_matches_grouped_tab_count(self):
+        dependencies = [
+            {
+                "name": "axios",
+                "ecosystem": "npm",
+                "version_spec": "1.8.1",
+                "declared_in": "C:/repo/backend/package.json",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+            {
+                "name": "axios",
+                "ecosystem": "npm",
+                "version_spec": "1.8.1",
+                "declared_in": "C:/repo/frontend/package.json",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+        ]
+
+        report_data = self.reporter.generate_report_data(
+            target_path=pathlib.Path("C:/repo"),
+            dependencies=dependencies,
+            ecosystems={"npm": 2},
+            output_file="report.html",
+            vulnerabilities={},
+        )
+
+        html = self.reporter.generate_html_report(report_data)
+
+        tab_match = re.search(r"Dependências \((\d+)\)", html)
+        card_match = re.search(
+            r'<div class="number">(\d+)</div>\s*<div class="label">Total de Dependências</div>',
+            html,
+        )
+
+        self.assertIsNotNone(tab_match)
+        self.assertIsNotNone(card_match)
+        self.assertEqual(tab_match.group(1), card_match.group(1))
+
+    @patch("webbrowser.open", return_value=False)
+    def test_display_scan_results_uses_grouped_count(self, _mock_webbrowser_open):
+        console = Console(record=True, force_terminal=False, width=140)
+        reporter = ReportGenerator(console=console)
+
+        dependencies = [
+            {
+                "name": "axios",
+                "ecosystem": "npm",
+                "version_spec": "1.8.1",
+                "declared_in": "C:/repo/backend/package.json",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+            {
+                "name": "axios",
+                "ecosystem": "npm",
+                "version_spec": "1.8.1",
+                "declared_in": "C:/repo/backend/package-lock.json",
+                "dependency_type": "transitive",
+                "is_transitive": True,
+            },
+        ]
+
+        reporter.display_scan_results(
+            dependencies=dependencies,
+            ecosystems={"npm": 2},
+            output_file="report.html",
+            vulnerabilities={},
+        )
+
+        output = console.export_text()
+        self.assertRegex(output, r"\b1\b dependências encontradas")
+        self.assertIn("2 ocorrência(s) bruta(s) no parse", output)
 
 
 if __name__ == "__main__":

@@ -141,6 +141,55 @@ javac.classpath=${file.reference.log4j-api-2.17.1.jar}:${file.reference.mysql-co
         self.assertEqual(dependencies[1]["version_spec"], "8.0.20")
         self.assertEqual(dependencies[0]["purl"], "pkg:generic/log4j-api@2.17.1")
 
+    def test_parse_ant_marks_libs_classpath_as_transitive(self):
+        build_file = self.temp_dir / "build.xml"
+        build_file.write_text("<project name=\"demo\"/>", encoding="utf-8")
+
+        nbproject_dir = self.temp_dir / "nbproject"
+        nbproject_dir.mkdir()
+        (nbproject_dir / "project.properties").write_text(
+            """file.reference.log4j-api-2.17.1.jar=lib\\log4j-api-2.17.1.jar
+javac.classpath=${libs.jakartaee-api-10.0.classpath}:${file.reference.log4j-api-2.17.1.jar}
+""",
+            encoding="utf-8",
+        )
+
+        dependencies = self.parser.parse(build_file)
+
+        self.assertEqual(len(dependencies), 2)
+
+        transitive = next(dep for dep in dependencies if dep["dependency_type"] == "transitive")
+        self.assertTrue(transitive["is_transitive"])
+        self.assertEqual(transitive["name"], "jakartaee-api")
+        self.assertEqual(transitive["version_spec"], "10.0")
+
+        direct = next(dep for dep in dependencies if dep["dependency_type"] == "direct")
+        self.assertFalse(direct["is_transitive"])
+        self.assertEqual(direct["name"], "log4j-api")
+
+    def test_parse_ant_ignores_internal_classpath_tokens(self):
+        build_file = self.temp_dir / "build.xml"
+        build_file.write_text("<project name=\"demo\"/>", encoding="utf-8")
+
+        nbproject_dir = self.temp_dir / "nbproject"
+        nbproject_dir.mkdir()
+        (nbproject_dir / "project.properties").write_text(
+            """file.reference.poi-ooxml-5.2.2.jar=lib\\poi-ooxml-5.2.2.jar
+javac.classpath=${build.classes.dir}:${javac.classpath}:${j2ee.server.home}:${libs.jakartaee-api-10.0.classpath}:${file.reference.poi-ooxml-5.2.2.jar}
+""",
+            encoding="utf-8",
+        )
+
+        dependencies = self.parser.parse(build_file)
+        names = {dep["name"] for dep in dependencies}
+
+        self.assertEqual(len(dependencies), 2)
+        self.assertIn("poi-ooxml", names)
+        self.assertIn("jakartaee-api", names)
+        self.assertNotIn("build.classes.dir", names)
+        self.assertNotIn("javac.classpath", names)
+        self.assertNotIn("j2ee.server.home", names)
+
     def test_parse_gradle_lockfile_as_transitive_dependencies(self):
         lockfile = self.temp_dir / "gradle.lockfile"
         lockfile.write_text(

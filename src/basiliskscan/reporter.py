@@ -118,6 +118,7 @@ class ReportGenerator:
         ecosystems: Dict, 
         output_file: str,
         vulnerabilities: Optional[Dict[str, List[Dict]]] = None,
+        all_dependencies: Optional[List[Dict]] = None,
         report_options: Optional[Dict[str, object]] = None,
     ) -> Dict:
         """
@@ -705,6 +706,7 @@ class ReportGenerator:
         report_options = report_data.get("report_options", {})
         transitive_hidden_count = int(report_options.get("transitive_hidden_count", 0) or 0)
         grouped_dependencies = self._build_grouped_dependencies(dependencies)
+        displayed_dependencies_count = len(grouped_dependencies)
         
         # Identificar componentes vulneráveis e ordenar por severidade
         dependency_statuses = self._build_dependency_statuses(grouped_dependencies, vulnerabilities_data)
@@ -1859,7 +1861,7 @@ class ReportGenerator:
                 <div class="stats-grid">
                     <div class="stat-card info">
                         <div class="icon"><i class="bi bi-box-seam"></i></div>
-                        <div class="number">{project_info['dependency_count']}</div>
+                        <div class="number">{displayed_dependencies_count}</div>
                         <div class="label">Total de Dependências</div>
                     </div>
 
@@ -2377,11 +2379,22 @@ class ReportGenerator:
             output_file: Arquivo onde o relatório foi salvo
             vulnerabilities: Dicionário com vulnerabilidades encontradas
         """
+        grouped_dependencies = self._build_grouped_dependencies(dependencies)
+        grouped_ecosystems: Dict[str, int] = {}
+        for dependency in grouped_dependencies:
+            ecosystem = dependency.get("ecosystem", "unknown")
+            grouped_ecosystems[ecosystem] = grouped_ecosystems.get(ecosystem, 0) + 1
+
         self.console.print("[bold green]✅ Varredura concluída com sucesso![/bold green]")
         self.console.print(f"[cyan]📊 Estatísticas:[/cyan]")
-        self.console.print(f"   • [bold]{len(dependencies)}[/bold] dependências encontradas")
+        self.console.print(f"   • [bold]{len(grouped_dependencies)}[/bold] dependências encontradas")
+
+        if len(grouped_dependencies) != len(dependencies):
+            self.console.print(
+                f"   • [dim]{len(dependencies)} ocorrência(s) bruta(s) no parse; consolidado por componente para refletir a aba Dependências[/dim]"
+            )
         
-        for eco, count in ecosystems.items():
+        for eco, count in grouped_ecosystems.items():
             emoji = ECOSYSTEM_EMOJIS.get(eco, "❓")
             self.console.print(f"   • {emoji} [bold]{count}[/bold] dependência(s) do ecossistema [italic]{eco}[/italic]")
         

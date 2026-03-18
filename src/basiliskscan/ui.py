@@ -62,8 +62,11 @@ class UIHelper:
         """Exibe as opções de início rápido."""
         self.console.print("\n[bold green]🚀 INÍCIO RÁPIDO:[/bold green]")
         self.console.print("  bscan scan                    # Analisa o diretório atual")
+        self.console.print("  bscan scan --skip-vulns       # Gera relatório sem consultar OSV/NVD")
+        self.console.print("  bscan scan --include-transitive  # Inclui dependências transitivas")
         self.console.print("  bscan scan --help             # Ajuda detalhada do comando scan")
         self.console.print("  bscan --version               # Versão do BasiliskScan")
+        self.console.print("\n[dim]💡 Dica: defina NVD_API_KEY em .env para enriquecer as consultas ao NVD[/dim]")
         self.console.print("\n[dim]💡 Para mais informações, use: bscan scan --help[/dim]")
     
     def display_error(self, message: str, suggestion: str = None) -> None:

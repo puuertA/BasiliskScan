@@ -7,7 +7,14 @@ import click
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 
 from ..config import DEFAULT_OUTPUT_FILE
-from ..help_text import SCAN_HELP, PROJECT_OPTION_HELP, URL_OPTION_HELP, OUTPUT_OPTION_HELP
+from ..help_text import (
+    SCAN_HELP,
+    PROJECT_OPTION_HELP,
+    URL_OPTION_HELP,
+    OUTPUT_OPTION_HELP,
+    SKIP_VULNS_OPTION_HELP,
+    INCLUDE_TRANSITIVE_OPTION_HELP,
+)
 from ..ui import BasiliskCommand, UIHelper, validate_target_path, handle_file_save_error
 from ..scanner import DependencyScanner
 from ..reporter import ReportGenerator
@@ -49,7 +56,7 @@ def _filter_scan_dependencies(dependencies: list[dict], include_transitive: bool
 )
 @click.option(
     "--url",
-    "-u", 
+    "-u",
     "url",
     type=str,
     default=None,
@@ -59,8 +66,8 @@ def _filter_scan_dependencies(dependencies: list[dict], include_transitive: bool
 @click.option(
     "--output",
     "-o",
-    "output", 
-    type=str,  # ← MUDANÇA AQUI: usar str em vez de click.Path
+    "output",
+    type=str,
     default=DEFAULT_OUTPUT_FILE,
     show_default=True,
     help=OUTPUT_OPTION_HELP,
@@ -70,13 +77,13 @@ def _filter_scan_dependencies(dependencies: list[dict], include_transitive: bool
     "--skip-vulns",
     is_flag=True,
     default=False,
-    help="Pular a análise de vulnerabilidades (mais rápido)"
+    help=SKIP_VULNS_OPTION_HELP,
 )
 @click.option(
     "--include-transitive",
     is_flag=True,
     default=False,
-    help="Incluir dependências transitivas no relatório e na busca de vulnerabilidades",
+    help=INCLUDE_TRANSITIVE_OPTION_HELP,
 )
 def scan_command(
     project: str,
@@ -89,9 +96,9 @@ def scan_command(
     🚀 Executa uma varredura completa de dependências no projeto alvo.
     
     Analisa recursivamente o diretório especificado em busca de arquivos
-    de dependências (package.json, requirements.txt) e gera um relatório
-    interativo em HTML com abas para navegação entre componentes, vulnerabilidades
-    e componentes desatualizados.
+    de dependências suportados (Node.js/Ionic e Java) e gera um relatório
+    interativo em HTML com abas para navegação entre componentes,
+    vulnerabilidades e componentes desatualizados.
     """
     # Inicializa componentes
     ui = UIHelper()
@@ -180,7 +187,8 @@ def scan_command(
                 components_to_check = []
                 for dep in dependencies:
                     # Extrair versão limpa (remover operadores como ^, ~, >=, etc)
-                    version = dep.get('version_spec', '')
+                    raw_version = dep.get('version_spec')
+                    version = str(raw_version).strip() if raw_version is not None else ''
                     clean_version = version.lstrip('^~>=<')
                     
                     components_to_check.append({
@@ -246,6 +254,7 @@ def scan_command(
             ecosystems,
             output,
             vulnerabilities,
+            all_dependencies=all_dependencies,
             report_options={
                 "include_transitive": include_transitive,
                 "transitive_hidden_count": filtered_count,
