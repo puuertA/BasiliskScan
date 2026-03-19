@@ -16,6 +16,7 @@ from ..help_text import (
     INCLUDE_TRANSITIVE_OPTION_HELP,
 )
 from ..ui import BasiliskCommand, UIHelper, validate_target_path, handle_file_save_error
+from ..env import load_dotenv
 from ..scanner import DependencyScanner
 from ..reporter import ReportGenerator
 from ..ingest.aggregator import VulnerabilityAggregator
@@ -37,6 +38,37 @@ def _filter_scan_dependencies(dependencies: list[dict], include_transitive: bool
         return dependencies
 
     return [dep for dep in dependencies if not _is_transitive_dependency(dep)]
+
+
+def _build_unique_components_for_vuln_scan(dependencies: list[dict]) -> list[dict]:
+    """Deduplica componentes para evitar consultas repetidas às APIs de vulnerabilidade."""
+    unique: list[dict] = []
+    seen_keys: set[tuple[str, str, str]] = set()
+
+    for dep in dependencies:
+        name = str(dep.get("name", "") or "").strip()
+        if not name:
+            continue
+
+        raw_version = dep.get("version_spec")
+        version = str(raw_version).strip() if raw_version is not None else ""
+        clean_version = version.lstrip("^~>=<")
+        ecosystem = str(dep.get("ecosystem", "") or "").strip().lower()
+
+        key = (name.lower(), clean_version, ecosystem)
+        if key in seen_keys:
+            continue
+
+        seen_keys.add(key)
+        unique.append(
+            {
+                "name": name,
+                "version": clean_version if clean_version else None,
+                "ecosystem": ecosystem,
+            }
+        )
+
+    return unique
 
 
 @click.command(
@@ -118,6 +150,9 @@ def scan_command(
     
     # Valida o diretório alvo
     validate_target_path(target_path, url)
+
+    # Carrega variáveis de ambiente a partir do projeto alvo para reaproveitar chaves locais (.env)
+    load_dotenv(search_from=target_path)
     
     # Exibe informações da varredura
     reporter.display_scan_header(target_path, output, url_mode, url)
@@ -183,22 +218,12 @@ def scan_command(
             try:
                 aggregator = VulnerabilityAggregator()
                 
-                # Preparar componentes para busca
-                components_to_check = []
-                for dep in dependencies:
-                    # Extrair versão limpa (remover operadores como ^, ~, >=, etc)
-                    raw_version = dep.get('version_spec')
-                    version = str(raw_version).strip() if raw_version is not None else ''
-                    clean_version = version.lstrip('^~>=<')
-                    
-                    components_to_check.append({
-                        'name': dep.get('name', ''),
-                        'version': clean_version if clean_version else None,
-                        'ecosystem': dep.get('ecosystem', '')
-                    })
+                # Preparar componentes únicos para busca
+                components_to_check = _build_unique_components_for_vuln_scan(dependencies)
                 
                 # Debug: mostrar componentes que serão verificados
                 ui.console.print(f"[dim]Debug: Componentes a verificar: {[c['name'] for c in components_to_check[:5]]}{'...' if len(components_to_check) > 5 else ''}[/dim]")
+                ui.console.print(f"[dim]Debug: Total único para consulta: {len(components_to_check)}[/dim]")
                 
                 # Buscar vulnerabilidades em paralelo
                 ui.console.print(f"[dim]   Analisando {len(components_to_check)} componente(s)...[/dim]")

@@ -6,6 +6,7 @@ import time
 import webbrowser
 import json
 import html
+import os
 from datetime import datetime
 from typing import Callable, Dict, List, Optional
 from rich.console import Console
@@ -28,6 +29,9 @@ class ReportGenerator:
         self.scan_start_time = None
         self.scan_duration = 0
         self.vulnerability_types = self._load_vulnerability_types()
+        self._translation_cache: Dict[str, str] = {}
+        disable_translation = os.getenv("BASILISKSCAN_DISABLE_TRANSLATION", "").strip().lower()
+        self.disable_translation = disable_translation in {"1", "true", "yes", "on"}
 
     def _load_vulnerability_types(self) -> List[Dict[str, object]]:
         """Carrega tipos de vulnerabilidade a partir de JSON com fallback seguro."""
@@ -101,6 +105,29 @@ class ReportGenerator:
             pass
 
         return default_types
+
+    def _load_report_css(self) -> str:
+        """Carrega o CSS do relatório com fallback para estilo mínimo."""
+        css_path = pathlib.Path(__file__).parent / "data" / "report.css"
+        try:
+            return css_path.read_text(encoding="utf-8")
+        except Exception:
+            return """
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Montserrat', sans-serif;
+            margin: 0;
+            background: #0f1419;
+            color: #e0e0e0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+        """
     
     def start_timer(self):
         """Inicia o timer de execução da análise."""
@@ -280,6 +307,17 @@ class ReportGenerator:
         Returns:
             Texto traduzido em português ou texto original em caso de erro
         """
+        if self.disable_translation:
+            return text
+
+        cache_key = text.strip()
+        if not cache_key:
+            return text
+
+        cached = self._translation_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             # Limitar tamanho e dividir em chunks se necessário
             max_chunk_size = 4500  # Deixar margem de segurança
@@ -287,7 +325,9 @@ class ReportGenerator:
             if len(text) <= max_chunk_size:
                 translator = GoogleTranslator(source='en', target='pt')
                 translated = translator.translate(text)
-                return translated if translated else text
+                final_text = translated if translated else text
+                self._translation_cache[cache_key] = final_text
+                return final_text
             
             # Dividir texto em chunks menores
             # Tentar dividir por parágrafos primeiro
@@ -321,11 +361,14 @@ class ReportGenerator:
             if current_chunk:
                 translated_parts.append(translator.translate(current_chunk))
             
-            return ''.join(translated_parts)
+            final_text = ''.join(translated_parts)
+            self._translation_cache[cache_key] = final_text
+            return final_text
             
         except Exception as e:
             # Em caso de erro, retorna o texto original
             self.console.print(f"[yellow]⚠️ Erro na tradução: {str(e)[:100]}[/yellow]")
+            self._translation_cache[cache_key] = text
             return text
     
     def _extract_cve_id(self, vuln_id: str) -> Optional[str]:
@@ -689,6 +732,21 @@ class ReportGenerator:
             '</div>'
         )
 
+    def _build_component_status_chart_data(self, total_components: int, vulnerable_components: int, outdated_components: int) -> str:
+        """Gera dados para o gráfico de status dos componentes."""
+        import json
+
+        return json.dumps({
+            'labels': ['Total de Componentes', 'Componentes Vulneráveis', 'Componentes Desatualizados'],
+            'data': [
+                int(total_components or 0),
+                int(vulnerable_components or 0),
+                int(outdated_components or 0),
+            ],
+            'background_colors': ['rgba(74, 144, 217, 0.35)', 'rgba(231, 76, 60, 0.35)', 'rgba(243, 156, 18, 0.35)'],
+            'border_colors': ['#4a90d9', '#e74c3c', '#f39c12']
+        })
+
     def generate_html_report(self, report_data: Dict) -> str:
         """
         Gera o HTML do relatório com estrutura melhorada.
@@ -748,6 +806,14 @@ class ReportGenerator:
         project_name = pathlib.Path(scan_metadata["target_path"]).name
         duration = scan_metadata.get('duration_seconds', 0)
         
+        # Gerar dados para o gráfico de status dos componentes
+        component_status_chart_data = self._build_component_status_chart_data(
+            displayed_dependencies_count,
+            len(vulnerable_components),
+            outdated_components_count,
+        )
+        report_css = self._load_report_css()
+        
         html_content = f'''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -758,1055 +824,9 @@ class ReportGenerator:
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        
-        body {{
-            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #0f1419 0%, #1a1a2e 50%, #16213e 100%);
-            min-height: 100vh;
-            padding: 20px;
-            color: #e0e0e0;
-        }}
-        
-        .container {{
-            max-width: 1400px;
-            margin: 0 auto;
-            background: #1e1e1e;
-            border-radius: 15px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-            overflow: visible;
-            border: 1px solid #333;
-        }}
-        
-        /* Header Styles */
-        .header {{
-            background: linear-gradient(135deg, #0f1419 0%, #1a1a2e 50%, #16213e 100%);
-            color: #e0e0e0;
-            padding: 40px;
-            text-align: center;
-            border-bottom: 3px solid #4a90d9;
-        }}
-        
-        .logo {{
-            width: 100px;
-            height: 100px;
-            margin: 0 auto 20px;
-            display: block;
-            border-radius: 50%;
-            box-shadow: 0 10px 25px rgba(74, 144, 217, 0.3);
-        }}
-        
-        .header h1 {{
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }}
-        
-        .header .subtitle {{
-            font-size: 1.2em;
-            opacity: 0.9;
-            margin-bottom: 25px;
-        }}
-        
-        /* Scan Info Grid */
-        .scan-info {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 30px;
-            background: rgba(255,255,255,0.05);
-            padding: 20px;
-            border-radius: 10px;
-        }}
-        
-        .scan-info-item {{
-            text-align: left;
-            padding: 15px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 8px;
-            border-left: 3px solid #4a90d9;
-        }}
-        
-        .scan-info-item .label {{
-            font-size: 0.85em;
-            color: #888;
-            margin-bottom: 5px;
-        }}
-        
-        .scan-info-item .value {{
-            font-size: 1.1em;
-            font-weight: 600;
-            color: #e0e0e0;
-        }}
-        
-        /* Navigation Tabs */
-        .nav-tabs {{
-            display: flex;
-            background: #2a2a2a;
-            border-bottom: 2px solid #404040;
-            overflow-x: auto;
-        }}
-        
-        .nav-tab {{
-            flex: 1;
-            min-width: 200px;
-            padding: 20px;
-            background: none;
-            border: none;
-            font-size: 1em;
-            font-weight: 600;
-            color: #888;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-bottom: 3px solid transparent;
-        }}
-        
-        .nav-tab:hover {{
-            background: #333;
-            color: #b0b0b0;
-        }}
-        
-        .nav-tab.active {{
-            background: #1e1e1e;
-            color: #4a90d9;
-            border-bottom-color: #4a90d9;
-        }}
-        
-        /* Content Sections */
-        .tab-content {{
-            display: none;
-            padding: 40px;
-            background: #1e1e1e;
-        }}
-        
-        .tab-content.active {{
-            display: block;
-        }}
-        
-        .section {{
-            margin-bottom: 40px;
-        }}
-        
-        .section-title {{
-            font-size: 1.8em;
-            margin-bottom: 20px;
-            color: #e0e0e0;
-            border-bottom: 2px solid #404040;
-            padding-bottom: 10px;
-        }}
-        
-        .section-subtitle {{
-            font-size: 1.3em;
-            margin: 30px 0 15px 0;
-            color: #b0b0b0;
-        }}
-        
-        /* Stats Cards */
-        .stats-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }}
-        
-        .stat-card {{
-            background: linear-gradient(135deg, #2a2a2a 0%, #333 100%);
-            padding: 25px;
-            border-radius: 12px;
-            text-align: center;
-            border: 1px solid #404040;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }}
-        
-        .stat-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-        }}
-        
-        .stat-card .icon {{
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }}
-
-        .icon i, .section-title i, .section-subtitle i, .nav-tab i, .scan-info-item .label i, .header h1 i, .vuln-type i, .cvss-score i, .translation-label i, .info-label i, .btn i, .recommendation-card .title i, .severity-badge i {{
-            margin-right: 6px;
-        }}
-        
-        .stat-card .number {{
-            font-size: 2.5em;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }}
-        
-        .stat-card .label {{
-            font-size: 1em;
-            color: #888;
-        }}
-        
-        .stat-card.info {{
-            border-left: 4px solid #4a90d9;
-        }}
-        
-        .stat-card.info .number {{
-            color: #4a90d9;
-        }}
-        
-        .stat-card.success {{
-            border-left: 4px solid #2ecc71;
-        }}
-        
-        .stat-card.success .number {{
-            color: #2ecc71;
-        }}
-        
-        .stat-card.warning {{
-            border-left: 4px solid #f39c12;
-        }}
-        
-        .stat-card.warning .number {{
-            color: #f39c12;
-        }}
-        
-        .stat-card.danger {{
-            border-left: 4px solid #e74c3c;
-        }}
-        
-        .stat-card.danger .number {{
-            color: #e74c3c;
-        }}
-        
-        .stat-card.critical {{
-            border-left: 4px solid #c0392b;
-            background: linear-gradient(135deg, #2a2a2a 0%, #3d1f1f 100%);
-        }}
-        
-        .stat-card.critical .number {{
-            color: #e74c3c;
-        }}
-        
-        /* Vulnerability Cards */
-        .vuln-card {{
-            background: #2a2a2a;
-            border: 1px solid #404040;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 20px;
-            border-left: 5px solid #4a90d9;
-            transition: all 0.3s ease;
-        }}
-        
-        .vuln-card:hover {{
-            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-        }}
-        
-        .vuln-card.critical {{
-            border-left-color: #c0392b;
-            background: linear-gradient(135deg, #2a2a2a 0%, #3d1f1f 100%);
-        }}
-        
-        .vuln-card.high {{
-            border-left-color: #e74c3c;
-        }}
-        
-        .vuln-card.medium {{
-            border-left-color: #f39c12;
-        }}
-        
-        .vuln-card.low {{
-            border-left-color: #3498db;
-        }}
-        
-        .vuln-card-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }}
-
-        .component-toggle {{
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid #404040;
-            background: rgba(255,255,255,0.06);
-            color: #e0e0e0;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s ease;
-        }}
-
-        .component-toggle:hover {{
-            border-color: #4a90d9;
-            background: rgba(74, 144, 217, 0.15);
-        }}
-
-        .vuln-count {{
-            font-size: 0.85em;
-            color: #b0b0b0;
-            font-weight: 500;
-        }}
-
-        .vuln-card-body {{
-            max-height: 0;
-            overflow: hidden;
-            opacity: 0;
-            transition: max-height 0.5s ease, opacity 0.3s ease;
-        }}
-
-        .vuln-card-body.expanded {{
-            max-height: 12000px;
-            overflow: visible;
-            opacity: 1;
-            margin-top: 15px;
-        }}
-        
-        .component-name {{
-            font-size: 1.5em;
-            font-weight: 700;
-            color: #e0e0e0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }}
-        
-        .ecosystem-badge {{
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.7em;
-            font-weight: 600;
-            text-transform: uppercase;
-        }}
-        
-        .ecosystem-badge.npm {{
-            background: linear-gradient(135deg, #cb3837, #a02d2d);
-            color: white;
-        }}
-        
-        .ecosystem-badge.pypi {{
-            background: linear-gradient(135deg, #3776ab, #2d5f8a);
-            color: white;
-        }}
-        
-        .ecosystem-badge.maven {{
-            background: linear-gradient(135deg, #f58025, #c96915);
-            color: white;
-        }}
-
-        .ecosystem-badge.ant {{
-            background: linear-gradient(135deg, #8e44ad, #6c3483);
-            color: white;
-        }}
-
-        .version-flow {{
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }}
-
-        .version-current {{
-            color: #e0e0e0;
-            font-weight: 600;
-        }}
-
-        .version-arrow {{
-            color: #f1c40f;
-            font-weight: 700;
-        }}
-
-        .version-target {{
-            color: #2ecc71;
-            font-weight: 700;
-        }}
-        
-        .component-info {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 8px;
-        }}
-        
-        .info-item {{
-            display: flex;
-            flex-direction: column;
-        }}
-        
-        .info-label {{
-            font-size: 0.85em;
-            color: #888;
-            margin-bottom: 5px;
-        }}
-        
-        .info-value {{
-            font-size: 1em;
-            color: #e0e0e0;
-            font-weight: 600;
-            white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-        }}
-
-        .info-value.path {{
-            line-height: 1.45;
-        }}
-        
-        .info-value.version {{
-            color: #4a90d9;
-        }}
-        
-        .info-value.fixed {{
-            color: #2ecc71;
-        }}
-        
-        /* Vulnerability List */
-        .vuln-list {{
-            margin-top: 20px;
-        }}
-        
-        .vuln-item {{
-            background: rgba(0,0,0,0.3);
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            border-left: 3px solid #404040;
-        }}
-        
-        .vuln-item.critical {{
-            border-left-color: #c0392b;
-        }}
-        
-        .vuln-item.high {{
-            border-left-color: #e74c3c;
-        }}
-        
-        .vuln-item.medium {{
-            border-left-color: #f39c12;
-        }}
-        
-        .vuln-item.low {{
-            border-left-color: #3498db;
-        }}
-        
-        .vuln-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }}
-        
-        .vuln-id {{
-            font-size: 1.2em;
-            font-weight: 700;
-            color: #e0e0e0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }}
-        
-        .severity-badge {{
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            font-weight: 700;
-            text-transform: uppercase;
-            white-space: nowrap;
-            position: relative;
-            cursor: help;
-        }}
-
-        .severity-badge:hover .tooltip,
-        .severity-chip:hover .tooltip {{
-            visibility: visible;
-            opacity: 1;
-        }}
-
-        .severity-chip {{
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            position: relative;
-            cursor: help;
-        }}
-        
-        .severity-badge.critical {{
-            background: #c0392b;
-            color: white;
-        }}
-        
-        .severity-badge.high {{
-            background: #e74c3c;
-            color: white;
-        }}
-        
-        .severity-badge.medium {{
-            background: #f39c12;
-            color: #2d3436;
-        }}
-        
-        .severity-badge.low {{
-            background: #3498db;
-            color: white;
-        }}
-
-        .severity-badge.update {{
-            background: #f1c40f;
-            color: #2d3436;
-        }}
-
-        .severity-badge.direct {{
-            background: #2ecc71;
-            color: white;
-        }}
-
-        .severity-badge.transitive {{
-            background: #8e44ad;
-            color: white;
-        }}
-
-        .severity-badge.mixed {{
-            background: #16a085;
-            color: white;
-        }}
-
-        .status-badges {{
-            display: inline-flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            align-items: center;
-        }}
-
-        .status-badges + .status-badges {{
-            margin-top: 6px;
-        }}
-        
-        .vuln-meta {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 15px;
-            align-items: center;
-        }}
-
-        .vuln-type-legend {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: rgba(0,0,0,0.2);
-            border: 1px solid #404040;
-            border-radius: 8px;
-        }}
-
-        .vuln-type-legend .vuln-type {{
-            font-size: 0.85em;
-        }}
-
-        .type-count {{
-            color: #b0b0b0;
-            font-weight: 600;
-            margin-left: 3px;
-        }}
-        
-        .vuln-type {{
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 4px 10px;
-            background: rgba(74, 144, 217, 0.2);
-            border-radius: 5px;
-            font-size: 0.9em;
-            color: #4a90d9;
-            border: 1px solid #4a90d9;
-            cursor: help;
-            position: relative;
-        }}
-        
-        .vuln-type:hover .tooltip {{
-            visibility: visible;
-            opacity: 1;
-        }}
-        
-        .tooltip {{
-            visibility: hidden;
-            width: 300px;
-            max-width: calc(100vw - 40px);
-            background-color: #2d3436;
-            color: #dfe6e9;
-            text-align: left;
-            border-radius: 6px;
-            padding: 12px;
-            position: absolute;
-            z-index: 2147483647;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -150px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            border: 1px solid #4a90d9;
-            font-size: 0.85em;
-            line-height: 1.4;
-            white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            text-transform: none;
-        }}
-
-        .tooltip.tooltip-cvss {{
-            width: 520px;
-            max-width: min(520px, calc(100vw - 40px));
-            padding: 14px;
-        }}
-        
-        .tooltip::after {{
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #2d3436 transparent transparent transparent;
-        }}
-
-        .vuln-header .severity-badge .tooltip {{
-            left: auto;
-            right: 0;
-            margin-left: 0;
-        }}
-
-        .vuln-header .severity-badge .tooltip::after {{
-            left: auto;
-            right: 18px;
-            margin-left: 0;
-        }}
-        
-        .cvss-score {{
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 4px 10px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 5px;
-            font-weight: 600;
-            position: relative;
-            cursor: help;
-        }}
-
-        .cvss-score:hover .tooltip {{
-            visibility: visible;
-            opacity: 1;
-        }}
-
-        .cvss-tooltip-title {{
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 8px;
-        }}
-
-        .cvss-tooltip-text,
-        .cvss-tooltip-current,
-        .cvss-tooltip-footnote {{
-            margin-bottom: 10px;
-        }}
-
-        .cvss-tooltip-current {{
-            color: #8cc8ff;
-            font-weight: 600;
-        }}
-
-        .cvss-tooltip-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-            font-size: 0.92em;
-        }}
-
-        .cvss-tooltip-table th,
-        .cvss-tooltip-table td {{
-            padding: 6px 8px;
-            border: 1px solid rgba(255,255,255,0.08);
-            text-align: left;
-            vertical-align: top;
-        }}
-
-        .cvss-tooltip-table th {{
-            color: #ffffff;
-            background: rgba(74, 144, 217, 0.15);
-        }}
-        
-        .vuln-description {{
-            margin: 15px 0;
-            line-height: 1.6;
-            color: #b0b0b0;
-        }}
-        
-        .description-header {{
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            user-select: none;
-        }}
-        
-        .description-header:hover {{
-            color: #4a90d9;
-        }}
-        
-        .expand-arrow {{
-            transition: transform 0.3s ease;
-            display: inline-block;
-        }}
-        
-        .expand-arrow.expanded {{
-            transform: rotate(90deg);
-        }}
-        
-        .description-content {{
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.5s ease;
-        }}
-        
-        .description-content.expanded {{
-            max-height: 3000px;
-        }}
-        
-        .description-text {{
-            padding: 15px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 5px;
-            margin-bottom: 10px;
-            border-left: 3px solid #4a90d9;
-            line-height: 1.8;
-        }}
-        
-        .description-text h1,
-        .description-text h2,
-        .description-text h3 {{
-            color: #4a90d9;
-            margin-top: 15px;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }}
-        
-        .description-text h1 {{
-            font-size: 1.5em;
-        }}
-        
-        .description-text h2 {{
-            font-size: 1.3em;
-        }}
-        
-        .description-text h3 {{
-            font-size: 1.1em;
-        }}
-        
-        .description-text code {{
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
-            color: #f39c12;
-            font-size: 0.9em;
-        }}
-        
-        .description-text pre {{
-            background: rgba(0, 0, 0, 0.4);
-            padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
-            margin: 10px 0;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }}
-        
-        .description-text pre code {{
-            background: none;
-            padding: 0;
-            color: #2ecc71;
-            font-size: 0.85em;
-            line-height: 1.5;
-        }}
-        
-        .description-text a {{
-            color: #4a90d9;
-            text-decoration: underline;
-        }}
-        
-        .description-text a:hover {{
-            color: #5aa3e8;
-        }}
-        
-        .description-text strong {{
-            color: #e0e0e0;
-            font-weight: 700;
-        }}
-        
-        .description-text em {{
-            font-style: italic;
-            color: #b0b0b0;
-        }}
-        
-        .description-translation {{
-            padding: 15px;
-            background: rgba(74, 144, 217, 0.1);
-            border-radius: 5px;
-            border-left: 3px solid #4a90d9;
-            line-height: 1.8;
-        }}
-        
-        .description-translation h1,
-        .description-translation h2,
-        .description-translation h3 {{
-            color: #4a90d9;
-            margin-top: 15px;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }}
-        
-        .description-translation h1 {{
-            font-size: 1.5em;
-        }}
-        
-        .description-translation h2 {{
-            font-size: 1.3em;
-        }}
-        
-        .description-translation h3 {{
-            font-size: 1.1em;
-        }}
-        
-        .description-translation code {{
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
-            color: #f39c12;
-            font-size: 0.9em;
-        }}
-        
-        .description-translation pre {{
-            background: rgba(0, 0, 0, 0.4);
-            padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
-            margin: 10px 0;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }}
-        
-        .description-translation pre code {{
-            background: none;
-            padding: 0;
-            color: #2ecc71;
-            font-size: 0.85em;
-            line-height: 1.5;
-        }}
-        
-        .description-translation a {{
-            color: #4a90d9;
-            text-decoration: underline;
-        }}
-        
-        .description-translation a:hover {{
-            color: #5aa3e8;
-        }}
-        
-        .description-translation strong {{
-            color: #e0e0e0;
-            font-weight: 700;
-        }}
-        
-        .description-translation em {{
-            font-style: italic;
-            color: #b0b0b0;
-        }}
-        
-        .translation-label {{
-            font-weight: 600;
-            color: #4a90d9;
-            margin-bottom: 5px;
-        }}
-        
-        .vuln-actions {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 15px;
-        }}
-        
-        .btn {{
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 0.9em;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-        }}
-        
-        .btn-primary {{
-            background: #4a90d9;
-            color: white;
-        }}
-        
-        .btn-primary:hover {{
-            background: #357abd;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(74, 144, 217, 0.3);
-        }}
-        
-        .btn-secondary {{
-            background: rgba(255,255,255,0.1);
-            color: #e0e0e0;
-            border: 1px solid #404040;
-        }}
-        
-        .btn-secondary:hover {{
-            background: rgba(255,255,255,0.15);
-            border-color: #4a90d9;
-        }}
-        
-        /* Dependency Table */
-        .table-wrapper {{
-            overflow-x: auto;
-            margin-top: 20px;
-        }}
-        
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            background: #2a2a2a;
-            border-radius: 8px;
-            overflow: hidden;
-        }}
-        
-        thead {{
-            background: #333;
-        }}
-        
-        th {{
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            color: #e0e0e0;
-            border-bottom: 2px solid #404040;
-        }}
-        
-        td {{
-            padding: 15px;
-            border-bottom: 1px solid #333;
-            color: #b0b0b0;
-        }}
-        
-        tr:hover {{
-            background: rgba(74, 144, 217, 0.1);
-        }}
-        
-        /* Empty State */
-        .empty-state {{
-            text-align: center;
-            padding: 60px 20px;
-        }}
-        
-        .empty-state .icon {{
-            font-size: 4em;
-            margin-bottom: 20px;
-            opacity: 0.5;
-        }}
-        
-        .empty-state .message {{
-            font-size: 1.3em;
-            color: #b0b0b0;
-            margin-bottom: 10px;
-        }}
-        
-        .empty-state .note {{
-            color: #888;
-        }}
-        
-        /* Recommendations */
-        .recommendation-card {{
-            background: linear-gradient(135deg, #2a2a2a 0%, #1f3d1f 100%);
-            border: 1px solid #2ecc71;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
-        }}
-
-        .dependency-note {{
-            margin-bottom: 16px;
-            padding: 12px 14px;
-            border-radius: 8px;
-            border: 1px solid #f39c12;
-            background: rgba(243, 156, 18, 0.12);
-            color: #f5d28a;
-            line-height: 1.4;
-        }}
-        
-        .recommendation-card .title {{
-            font-size: 1.1em;
-            font-weight: 600;
-            color: #2ecc71;
-            margin-bottom: 10px;
-        }}
-        
-        .recommendation-card .content {{
-            color: #b0b0b0;
-            line-height: 1.6;
-        }}
-        
-        /* Footer */
-        .footer {{
-            background: linear-gradient(135deg, #0f1419 0%, #1a1a2e 100%);
-            color: #888;
-            text-align: center;
-            padding: 25px;
-            border-top: 1px solid #404040;
-        }}
-        
-        /* Responsive */
-        @media (max-width: 768px) {{
-            .container {{
-                border-radius: 0;
-            }}
-            
-            .stats-grid {{
-                grid-template-columns: 1fr;
-            }}
-            
-            .component-info {{
-                grid-template-columns: 1fr;
-            }}
-            
-            .vuln-card-header,
-            .vuln-header {{
-                flex-direction: column;
-                align-items: flex-start;
-            }}
-        }}
+{report_css}
     </style>
 </head>
 <body>
@@ -1842,8 +862,8 @@ class ReportGenerator:
             <button class="nav-tab active" onclick="openTab('overview', event)">
                 <i class="bi bi-bar-chart-line"></i> Visão Geral
             </button>
-            <button class="nav-tab" onclick="openTab('dependencies', event)">
-                <i class="bi bi-box-seam"></i> Dependências ({len(grouped_dependencies)})
+            <button class="nav-tab" onclick="openTab('components', event)">
+                <i class="bi bi-box-seam"></i> Componentes ({len(grouped_dependencies)})
             </button>
             <button class="nav-tab" onclick="openTab('vulnerabilities', event)">
                 <i class="bi bi-shield-exclamation"></i> Vulnerabilidades ({total_vulnerabilities} em {len(vulnerable_components)} componente(s))
@@ -1862,7 +882,7 @@ class ReportGenerator:
                     <div class="stat-card info">
                         <div class="icon"><i class="bi bi-box-seam"></i></div>
                         <div class="number">{displayed_dependencies_count}</div>
-                        <div class="label">Total de Dependências</div>
+                        <div class="label">Total de Componentes</div>
                     </div>
 
                     <div class="stat-card warning">
@@ -1889,6 +909,89 @@ class ReportGenerator:
                         <div class="label">Tempo de Execução</div>
                     </div>
                 </div>
+
+                <h3 class="section-subtitle"><i class="bi bi-bar-chart"></i> Status dos Componentes</h3>
+                <div class="chart-container status-chart">
+                    <canvas id="componentStatusChart"></canvas>
+                </div>
+                <div class="chart-legend-note">Comparativo entre total identificado, componentes com vulnerabilidades e componentes com atualização recomendada.</div>
+                <script>
+                    const statusCtx = document.getElementById('componentStatusChart').getContext('2d');
+                    const componentStatusData = {component_status_chart_data};
+                    
+                    new Chart(statusCtx, {{
+                        type: 'bar',
+                        data: {{
+                            labels: componentStatusData.labels,
+                            datasets: [{{
+                                data: componentStatusData.data,
+                                backgroundColor: componentStatusData.background_colors,
+                                borderColor: componentStatusData.border_colors,
+                                borderWidth: 2
+                            }}]
+                        }},
+                        options: {{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {{
+                                x: {{
+                                    ticks: {{
+                                        color: '#d0d0d0',
+                                        font: {{
+                                            family: "'Montserrat', sans-serif",
+                                            size: 12,
+                                            weight: '600'
+                                        }}
+                                    }},
+                                    grid: {{
+                                        color: 'rgba(255,255,255,0.06)'
+                                    }}
+                                }},
+                                y: {{
+                                    beginAtZero: true,
+                                    ticks: {{
+                                        precision: 0,
+                                        color: '#d0d0d0',
+                                        font: {{
+                                            family: "'Montserrat', sans-serif",
+                                            size: 12
+                                        }}
+                                    }},
+                                    grid: {{
+                                        color: 'rgba(255,255,255,0.08)'
+                                    }}
+                                }}
+                            }},
+                            plugins: {{
+                                legend: {{
+                                    display: false
+                                }},
+                                tooltip: {{
+                                    backgroundColor: 'rgba(0,0,0,0.8)',
+                                    titleColor: '#ffffff',
+                                    bodyColor: '#e0e0e0',
+                                    borderColor: '#4a90d9',
+                                    borderWidth: 1,
+                                    padding: 12,
+                                    titleFont: {{
+                                        size: 13,
+                                        weight: 'bold'
+                                    }},
+                                    bodyFont: {{
+                                        size: 12
+                                    }},
+                                    callbacks: {{
+                                        label: function(context) {{
+                                            const label = context.label || '';
+                                            const value = context.parsed;
+                                            return label + ': ' + value;
+                                        }}
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }});
+                </script>
                 
                 <h3 class="section-subtitle"><i class="bi bi-bullseye"></i> Distribuição por Severidade</h3>
                 <div class="stats-grid">
@@ -1939,18 +1042,18 @@ class ReportGenerator:
             </div>
         </div>
         
-        <!-- Dependencies Tab -->
-        <div id="dependencies" class="tab-content">
+        <!-- Components Tab -->
+        <div id="components" class="tab-content">
             <div class="section">
-                <h2 class="section-title"><i class="bi bi-box-seam"></i> Dependências Identificadas</h2>
+                <h2 class="section-title"><i class="bi bi-box-seam"></i> Componentes Identificados</h2>
                 '''
 
         if transitive_hidden_count > 0:
             html_content += f'''
                 <div class="dependency-note">
                     <i class="bi bi-info-circle"></i>
-                    {transitive_hidden_count} dependência(s) transitiva(s) foram ocultadas neste relatório.
-                    Use <code>--include-transitive</code> para incluir também as transitivas.
+                    {transitive_hidden_count} componente(s) transitivo(s) foi(foram) ocultado(s) neste relatório.
+                    Use <code>--include-transitive</code> para incluir também os transitivos.
                 </div>'''
 
         html_content += '''
@@ -2215,16 +1318,16 @@ class ReportGenerator:
             html_content += '''
                 <h3 class="section-subtitle"><i class="bi bi-card-checklist"></i> Recomendações Gerais</h3>
                 <div class="recommendation-card">
-                    <div class="title"><i class="bi bi-arrow-repeat"></i> Mantenha suas dependências atualizadas</div>
+                    <div class="title"><i class="bi bi-arrow-repeat"></i> Mantenha seus componentes atualizados</div>
                     <div class="content">
-                        Execute análises periódicas para identificar novas vulnerabilidades e mantenha todas as dependências em suas versões mais recentes e seguras.
+                        Execute análises periódicas para identificar novas vulnerabilidades e mantenha todos os componentes em suas versões mais recentes e seguras.
                     </div>
                 </div>
                 
                 <div class="recommendation-card">
                     <div class="title"><i class="bi bi-shield-lock"></i> Implemente políticas de segurança</div>
                     <div class="content">
-                        Estabeleça processos de revisão de segurança antes de adicionar novas dependências ao projeto e configure alertas automáticos para vulnerabilidades.
+                        Estabeleça processos de revisão de segurança antes de adicionar novos componentes ao projeto e configure alertas automáticos para vulnerabilidades.
                     </div>
                 </div>
                 
@@ -2239,7 +1342,7 @@ class ReportGenerator:
                 <div class="empty-state">
                     <div class="icon"><i class="bi bi-check-circle"></i></div>
                     <div class="message">Seu projeto está seguro!</div>
-                    <div class="note">Continue monitorando regularmente suas dependências para manter a segurança.</div>
+                    <div class="note">Continue monitorando regularmente seus componentes para manter a segurança.</div>
                 </div>'''
         
         html_content += f'''
@@ -2292,8 +1395,6 @@ class ReportGenerator:
                 content.classList.add('expanded');
                 arrow.classList.add('expanded');
             }}
-        }}
-    </script>
         }}
     </script>
 </body>

@@ -137,9 +137,10 @@ class VulnerabilityAggregator:
             Dicionário mapeando componente para suas vulnerabilidades
         """
         results = {}
+        unique_components = self._deduplicate_components(components)
         
         if parallel:
-            with ThreadPoolExecutor(max_workers=min(len(components), 10)) as executor:
+            with ThreadPoolExecutor(max_workers=min(len(unique_components), 10)) as executor:
                 futures = {
                     executor.submit(
                         self.fetch_vulnerabilities,
@@ -148,7 +149,7 @@ class VulnerabilityAggregator:
                         comp.get('ecosystem'),
                         parallel=False  # Não paralelizar fontes aqui
                     ): comp['name']
-                    for comp in components
+                    for comp in unique_components
                 }
                 
                 for future in as_completed(futures):
@@ -161,7 +162,7 @@ class VulnerabilityAggregator:
                     if progress_callback:
                         progress_callback(comp_name)
         else:
-            for comp in components:
+            for comp in unique_components:
                 try:
                     results[comp['name']] = self.fetch_vulnerabilities(
                         comp['name'],
@@ -176,6 +177,29 @@ class VulnerabilityAggregator:
                     progress_callback(comp['name'])
         
         return results
+
+    @staticmethod
+    def _deduplicate_components(components: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """Remove componentes duplicados para evitar consultas redundantes."""
+        unique: List[Dict[str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+
+        for comp in components:
+            name = str(comp.get("name", "") or "").strip()
+            if not name:
+                continue
+
+            version = str(comp.get("version", "") or "").strip()
+            ecosystem = str(comp.get("ecosystem", "") or "").strip().lower()
+            key = (name.lower(), version, ecosystem)
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+            unique.append(comp)
+
+        return unique
     
     def get_available_sources(self) -> List[str]:
         """Retorna lista de fontes disponíveis."""

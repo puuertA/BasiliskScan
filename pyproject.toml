@@ -30,4 +30,4 @@ bscan = "basiliskscan.cli:cli"
 where = ["src"]
 
 [tool.setuptools.package-data]
-basiliskscan = ["data/*.json"]
+basiliskscan = ["data/*.json", "data/*.css"]
