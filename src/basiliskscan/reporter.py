@@ -1468,16 +1468,21 @@ class ReportGenerator:
 
         if vuln_type_legend:
             html_content += '''
-                <div class="vuln-type-legend">'''
+                <div class="vuln-type-legend" id="vuln-type-filters">
+                    <button type="button" class="vuln-type vuln-type-filter active" data-vuln-type-filter="all">
+                        <i class="bi bi-funnel"></i> Todas
+                        <span class="type-count">({total_vulnerabilities})</span>
+                    </button>'''
             for vuln_type, legend_info in vuln_type_legend.items():
                 type_description = legend_info.get("description", "Sem descrição")
                 type_count = legend_info.get("count", 0)
+                vuln_type_slug = re.sub(r"[^a-z0-9]+", "-", vuln_type.lower()).strip("-") or "security-issue"
                 html_content += f'''
-                    <span class="vuln-type">
+                    <button type="button" class="vuln-type vuln-type-filter" data-vuln-type-filter="{vuln_type_slug}">
                         <i class="bi bi-tag"></i> {vuln_type}
                         <span class="type-count">({type_count})</span>
                         <span class="tooltip">{type_description}</span>
-                    </span>'''
+                    </button>'''
 
             html_content += '''
                 </div>'''
@@ -1550,6 +1555,7 @@ class ReportGenerator:
                     
                     # Extrair tipo de vulnerabilidade e explicação
                     vuln_type, vuln_explanation = self._get_vuln_type(description)
+                    vuln_type_slug = re.sub(r"[^a-z0-9]+", "-", vuln_type.lower()).strip("-") or "security-issue"
                     
                     # Links externos
                     cve_id = self._extract_cve_id(vuln_id)
@@ -1562,7 +1568,7 @@ class ReportGenerator:
                     expand_id = f"desc-{comp_name}-{idx}"
                     
                     html_content += f'''
-                        <div class="vuln-item {severity}">
+                        <div class="vuln-item {severity}" data-vuln-type="{vuln_type_slug}">
                             <div class="vuln-header">
                                 <div class="vuln-id">{vuln_id}</div>
                                 <span class="severity-badge {severity}">{severity_icon} {severity.upper()}<span class="tooltip">{severity_description}</span></span>
@@ -1762,6 +1768,43 @@ class ReportGenerator:
                 arrow.classList.add('expanded');
             }}
         }}
+
+        function applyVulnTypeFilter(filterType) {{
+            const vulnItems = document.querySelectorAll('#vulnerabilities .vuln-item[data-vuln-type]');
+            vulnItems.forEach(function(item) {{
+                const shouldShow = filterType === 'all' || item.dataset.vulnType === filterType;
+                item.classList.toggle('vuln-item-hidden', !shouldShow);
+            }});
+
+            const vulnCards = document.querySelectorAll('#vulnerabilities .vuln-card');
+            vulnCards.forEach(function(card) {{
+                const hasVisibleItems = !!card.querySelector('.vuln-item:not(.vuln-item-hidden)');
+                card.classList.toggle('vuln-card-hidden', !hasVisibleItems);
+            }});
+        }}
+
+        function initVulnTypeFilters() {{
+            const filterButtons = document.querySelectorAll('#vuln-type-filters .vuln-type-filter');
+            if (!filterButtons.length) {{
+                return;
+            }}
+
+            filterButtons.forEach(function(button) {{
+                button.addEventListener('click', function() {{
+                    const filterType = button.dataset.vulnTypeFilter || 'all';
+
+                    filterButtons.forEach(function(btn) {{
+                        btn.classList.toggle('active', btn === button);
+                    }});
+
+                    applyVulnTypeFilter(filterType);
+                }});
+            }});
+
+            applyVulnTypeFilter('all');
+        }}
+
+        initVulnTypeFilters();
     </script>
 </body>
 </html>'''

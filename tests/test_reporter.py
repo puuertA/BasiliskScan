@@ -281,6 +281,9 @@ class TestReporter(unittest.TestCase):
         self.assertIn('class="tooltip tooltip-cvss"', html)
         self.assertIn('class="info-value path"', html)
         self.assertIn("O que é CVSS?", html)
+        self.assertIn('id="vuln-type-filters"', html)
+        self.assertIn('data-vuln-type-filter="all"', html)
+        self.assertIn('data-vuln-type="security-issue"', html)
 
     def test_generate_html_report_shows_transitive_hidden_note(self):
         dependencies = [

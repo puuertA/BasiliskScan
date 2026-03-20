@@ -532,6 +532,14 @@
         .vuln-item.low {
             border-left-color: #3498db;
         }
+
+        .vuln-item-hidden {
+            display: none;
+        }
+
+        .vuln-card-hidden {
+            display: none;
+        }
         
         .vuln-header {
             display: flex;
@@ -651,6 +659,25 @@
 
         .vuln-type-legend .vuln-type {
             font-size: 0.85em;
+        }
+
+        .vuln-type-filter {
+            appearance: none;
+            -webkit-appearance: none;
+            font: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .vuln-type-filter.active {
+            background: rgba(74, 144, 217, 0.32);
+            color: #d7ebff;
+            border-color: #8cc8ff;
+            box-shadow: 0 0 0 1px rgba(140, 200, 255, 0.35) inset;
+        }
+
+        .vuln-type.vuln-type-filter {
+            cursor: pointer;
         }
 
         .type-count {
