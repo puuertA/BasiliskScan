@@ -211,6 +211,7 @@ class TestReporter(unittest.TestCase):
         self.assertIn("gravidade Crítico", tooltip)
         self.assertIn("CVSS v2.0", tooltip)
         self.assertIn("9,0-10,0", tooltip)
+        self.assertIn('class="cvss-cell-active cvss-cell-active-critical">9,0-10,0', tooltip)
 
     def test_generate_html_report_counts_outdated_grouped_components(self):
         dependencies = [
@@ -442,6 +443,69 @@ class TestReporter(unittest.TestCase):
         output = console.export_text()
         self.assertRegex(output, r"\b1\b dependências encontradas")
         self.assertIn("2 ocorrência(s) bruta(s) no parse", output)
+
+    @patch("basiliskscan.reporter.GoogleTranslator")
+    def test_translate_text_preserves_technical_terms(self, mock_translator_cls):
+        mock_translator = mock_translator_cls.return_value
+
+        def fake_translate(text: str) -> str:
+            return (
+                text
+                .replace("security issue", "problema de segurança")
+                .replace("allows", "permite")
+                .replace("JavaScript", "Javascript")
+                .replace("TypeScript", "TipoScript")
+                .replace("Rust", "Enferrujado")
+                .replace("rust", "enferrujada")
+                .replace("node", "nó")
+                .replace("Next.js", "Próximo.js")
+                .replace("npm", "gerenciador")
+                .replace("package", "pacote")
+                .replace("lockfile", "arquivo de bloqueio")
+                .replace("crate", "caixote")
+                .replace("Go", "Ir")
+                .replace("JWT", "TokenWebJson")
+                .replace("jsonwebtoken", "tokenwebjson")
+                .replace("activate_nbf", "ativar_nbf")
+                .replace("require_spec_claims", "reivindicacoes_especificas")
+            )
+
+        mock_translator.translate.side_effect = fake_translate
+
+        translated = self.reporter._translate_text(
+            "This security issue allows code execution in JavaScript, TypeScript, Rust, node and Next.js with npm package lockfile crate and Go."
+        )
+
+        self.assertIn("JavaScript", translated)
+        self.assertIn("TypeScript", translated)
+        self.assertIn("Rust", translated)
+        self.assertIn("node", translated)
+        self.assertIn("Next.js", translated)
+        self.assertIn("npm", translated)
+        self.assertIn("package", translated)
+        self.assertIn("lockfile", translated)
+        self.assertIn("crate", translated)
+        self.assertIn("Go", translated)
+        self.assertNotIn("Enferrujado", translated)
+        self.assertNotIn("nó runtimes", translated)
+        self.assertNotIn("TipoScript", translated)
+        self.assertNotIn("Próximo.js", translated)
+        self.assertNotIn("arquivo de bloqueio", translated)
+
+        translated_real_case = self.reporter._translate_text(
+            "jsonwebtoken is a JWT rust library. If activate_nbf is enabled and require_spec_claims is not required, FailedToParse is treated like NotPresent for nbf and exp."
+        )
+
+        self.assertIn("jsonwebtoken", translated_real_case)
+        self.assertIn("JWT", translated_real_case)
+        self.assertIn("rust", translated_real_case)
+        self.assertIn("activate_nbf", translated_real_case)
+        self.assertIn("require_spec_claims", translated_real_case)
+        self.assertIn("FailedToParse", translated_real_case)
+        self.assertIn("NotPresent", translated_real_case)
+        self.assertNotIn("enferrujada", translated_real_case)
+        self.assertNotIn("TokenWebJson", translated_real_case)
+        self.assertNotIn("tokenwebjson", translated_real_case)
 
 
 if __name__ == "__main__":

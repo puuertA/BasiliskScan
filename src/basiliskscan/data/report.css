@@ -228,6 +228,42 @@
             color: #e74c3c;
         }
 
+        .stat-card.neutral {
+            border-left: 4px solid #7f8c8d;
+            background: linear-gradient(135deg, #2a2a2a 0%, #2d3238 100%);
+        }
+
+        .stat-card.neutral .number {
+            color: #a3b0bb;
+        }
+
+        .overview-charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            align-items: stretch;
+            margin-bottom: 14px;
+        }
+
+        .chart-panel {
+            min-width: 0;
+        }
+
+        .chart-panel .section-subtitle {
+            margin-top: 0;
+        }
+
+        .chart-toolbar {
+            min-height: 50px;
+            margin: 6px 0 12px 0;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .chart-toolbar-placeholder {
+            border: 1px solid transparent;
+        }
+
         .chart-container {
             position: relative;
             min-height: 280px;
@@ -242,10 +278,49 @@
             min-height: 320px;
         }
 
+        .chart-type-switch {
+            display: inline-flex;
+            gap: 8px;
+            margin: 0;
+            padding: 5px;
+            border: 1px solid #3a3a3a;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.03);
+        }
+
+        .chart-type-btn {
+            border: 1px solid transparent;
+            border-radius: 8px;
+            background: transparent;
+            color: #aab3bd;
+            padding: 7px 12px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .chart-type-btn:hover {
+            color: #e0e0e0;
+            background: rgba(74, 144, 217, 0.18);
+        }
+
+        .chart-type-btn.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, rgba(74, 144, 217, 0.35), rgba(74, 144, 217, 0.2));
+            border-color: rgba(74, 144, 217, 0.55);
+        }
+
         .chart-legend-note {
             color: #9ea7b3;
             font-size: 0.9em;
             margin-bottom: 18px;
+        }
+
+        @media (max-width: 1080px) {
+            .overview-charts-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
         /* Vulnerability Cards */
@@ -710,6 +785,41 @@
         .cvss-tooltip-table th {
             color: #ffffff;
             background: rgba(74, 144, 217, 0.15);
+        }
+
+        .cvss-tooltip-table td.cvss-cell-active {
+            font-weight: 700;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
+        }
+
+        .cvss-tooltip-table td.cvss-cell-active-none {
+            background: rgba(127, 140, 141, 0.26);
+            border-color: rgba(149, 165, 166, 0.92);
+            color: #ecf0f1;
+        }
+
+        .cvss-tooltip-table td.cvss-cell-active-low {
+            background: rgba(74, 144, 217, 0.26);
+            border-color: rgba(74, 144, 217, 0.92);
+            color: #e9f4ff;
+        }
+
+        .cvss-tooltip-table td.cvss-cell-active-medium {
+            background: rgba(243, 156, 18, 0.28);
+            border-color: rgba(243, 156, 18, 0.95);
+            color: #fff4dd;
+        }
+
+        .cvss-tooltip-table td.cvss-cell-active-high {
+            background: rgba(230, 126, 34, 0.28);
+            border-color: rgba(230, 126, 34, 0.95);
+            color: #ffecd9;
+        }
+
+        .cvss-tooltip-table td.cvss-cell-active-critical {
+            background: rgba(231, 76, 60, 0.3);
+            border-color: rgba(231, 76, 60, 0.95);
+            color: #ffe7e3;
         }
         
         .vuln-description {

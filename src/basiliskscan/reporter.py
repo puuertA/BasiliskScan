@@ -7,6 +7,7 @@ import webbrowser
 import json
 import html
 import os
+import re
 from datetime import datetime
 from typing import Callable, Dict, List, Optional
 from rich.console import Console
@@ -30,6 +31,42 @@ class ReportGenerator:
         self.scan_duration = 0
         self.vulnerability_types = self._load_vulnerability_types()
         self._translation_cache: Dict[str, str] = {}
+        # Termos técnicos que não devem ser traduzidos para evitar perda de sentido.
+        self._translation_protected_patterns: List[str] = [
+            r"\bJavaScript\b",
+            r"\bJavascript\b",
+            r"\bTypeScript\b",
+            r"\bRust\b",
+            r"\brust\b",
+            r"\bNode\.js\b",
+            r"\bnode\.js\b",
+            r"\bNode\b",
+            r"\bnode\b",
+            r"\bReact\b",
+            r"\bNext\.js\b",
+            r"\bVue\.js\b",
+            r"\bAngular\b",
+            r"\bnpm\b",
+            r"\bpnpm\b",
+            r"\byarn\b",
+            r"\bpackage\b",
+            r"\bpackages\b",
+            r"\blockfile\b",
+            r"\bcrate\b",
+            r"\bGo\b",
+            r"\bJWT\b",
+            r"\bjwt\b",
+            r"\bjsonwebtoken\b",
+            r"\bFailedToParse\b",
+            r"\bNotPresent\b",
+            r"\bactivate_nbf\b",
+            r"\brequire_spec_claims\b",
+            r"\bnbf\b",
+            r"\bexp\b",
+            r"\b[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]*\b",
+            r"\b[A-Z][a-z]+[A-Z][A-Za-z0-9]*\b",
+            r"\bCVE-\d{4}-\d{4,7}\b",
+        ]
         disable_translation = os.getenv("BASILISKSCAN_DISABLE_TRANSLATION", "").strip().lower()
         self.disable_translation = disable_translation in {"1", "true", "yes", "on"}
 
@@ -319,19 +356,23 @@ class ReportGenerator:
             return cached
 
         try:
+            protected_map: Dict[str, str] = {}
+            protected_text = self._protect_translation_terms(text, protected_map)
+
             # Limitar tamanho e dividir em chunks se necessário
             max_chunk_size = 4500  # Deixar margem de segurança
             
-            if len(text) <= max_chunk_size:
+            if len(protected_text) <= max_chunk_size:
                 translator = GoogleTranslator(source='en', target='pt')
-                translated = translator.translate(text)
-                final_text = translated if translated else text
+                translated = translator.translate(protected_text)
+                translated = translated if translated else protected_text
+                final_text = self._restore_translation_terms(translated, protected_map)
                 self._translation_cache[cache_key] = final_text
                 return final_text
             
             # Dividir texto em chunks menores
             # Tentar dividir por parágrafos primeiro
-            paragraphs = text.split('\n\n')
+            paragraphs = protected_text.split('\n\n')
             translated_parts = []
             current_chunk = ""
             
@@ -361,7 +402,8 @@ class ReportGenerator:
             if current_chunk:
                 translated_parts.append(translator.translate(current_chunk))
             
-            final_text = ''.join(translated_parts)
+            joined_translation = ''.join(translated_parts)
+            final_text = self._restore_translation_terms(joined_translation, protected_map)
             self._translation_cache[cache_key] = final_text
             return final_text
             
@@ -370,6 +412,33 @@ class ReportGenerator:
             self.console.print(f"[yellow]⚠️ Erro na tradução: {str(e)[:100]}[/yellow]")
             self._translation_cache[cache_key] = text
             return text
+
+    def _protect_translation_terms(self, text: str, protected_map: Dict[str, str]) -> str:
+        """Substitui termos técnicos por placeholders estáveis antes da tradução."""
+        protected_text = text
+
+        # Padrões maiores primeiro para evitar substituições parciais (Node.js antes de Node).
+        for pattern in sorted(self._translation_protected_patterns, key=len, reverse=True):
+            protected_text = re.sub(
+                pattern,
+                lambda match: self._register_translation_placeholder(match.group(0), protected_map),
+                protected_text,
+            )
+
+        return protected_text
+
+    def _register_translation_placeholder(self, original: str, protected_map: Dict[str, str]) -> str:
+        """Registra um placeholder único preservando o termo técnico original."""
+        placeholder = f"[[BASILISK_KEEP_{len(protected_map)}]]"
+        protected_map[placeholder] = original
+        return placeholder
+
+    def _restore_translation_terms(self, text: str, protected_map: Dict[str, str]) -> str:
+        """Restaura placeholders para os termos técnicos originais após a tradução."""
+        restored = text
+        for placeholder, original in protected_map.items():
+            restored = restored.replace(placeholder, original)
+        return restored
     
     def _extract_cve_id(self, vuln_id: str) -> Optional[str]:
         """Extrai o ID do CVE se presente."""
@@ -712,6 +781,61 @@ class ReportGenerator:
         version = str(cvss.get("version") or "N/A")
         score = float(vulnerability.get("score") or cvss.get("score") or 0.0)
         rating = self._get_cvss_rating_label(score, version)
+        normalized_version = version.strip().lower()
+
+        if normalized_version.startswith("2"):
+            active_column = "v2"
+        elif normalized_version.startswith("3"):
+            active_column = "v3"
+        elif normalized_version.startswith("4"):
+            active_column = "v4"
+        else:
+            active_column = "v4"
+
+        def bucket_for(score_value: float, column: str) -> str:
+            if score_value <= 0:
+                return "none"
+            if column == "v2":
+                if score_value <= 3.9:
+                    return "low"
+                if score_value <= 6.9:
+                    return "medium"
+                return "high"
+
+            if score_value <= 3.9:
+                return "low"
+            if score_value <= 6.9:
+                return "medium"
+            if score_value <= 8.9:
+                return "high"
+            return "critical"
+
+        active_bucket = bucket_for(score, active_column)
+        rows = [
+            ("none", "Nenhum*", "0,0", "0,0", "0,0"),
+            ("low", "Baixo", "0,0-3,9", "0,1-3,9", "0,1-3,9"),
+            ("medium", "Médio", "4,0-6,9", "4,0-6,9", "4,0-6,9"),
+            ("high", "Alto", "7,0-10,0", "7,0-8,9", "7,0-8,9"),
+            ("critical", "Crítico", "—", "9,0-10,0", "9,0-10,0"),
+        ]
+
+        body_rows = []
+        for bucket_key, label, v2_range, v3_range, v4_range in rows:
+            def cell(value: str, column: str) -> str:
+                is_active = bucket_key == active_bucket and column == active_column
+                css_class = f'cvss-cell-active cvss-cell-active-{bucket_key}' if is_active else ''
+                return f'<td class="{css_class}">{value}</td>'
+
+            body_rows.append(
+                "<tr>"
+                f"<td>{label}</td>"
+                f"{cell(v2_range, 'v2')}"
+                f"{cell(v3_range, 'v3')}"
+                f"{cell(v4_range, 'v4')}"
+                "</tr>"
+            )
+
+        body_html = "".join(body_rows)
 
         return (
             '<div class="cvss-tooltip-content">'
@@ -720,13 +844,7 @@ class ReportGenerator:
             f'<div class="cvss-tooltip-current">Métrica deste item: CVSS v{html.escape(version)} · score {score:.1f} · gravidade {html.escape(rating)}</div>'
             '<table class="cvss-tooltip-table">'
             '<thead><tr><th>Classificação</th><th>CVSS v2.0</th><th>CVSS v3.x</th><th>CVSS v4.0</th></tr></thead>'
-            '<tbody>'
-            '<tr><td>Nenhum*</td><td>0,0</td><td>0,0</td><td>0,0</td></tr>'
-            '<tr><td>Baixo</td><td>0,0-3,9</td><td>0,1-3,9</td><td>0,1-3,9</td></tr>'
-            '<tr><td>Médio</td><td>4,0-6,9</td><td>4,0-6,9</td><td>4,0-6,9</td></tr>'
-            '<tr><td>Alto</td><td>7,0-10,0</td><td>7,0-8,9</td><td>7,0-8,9</td></tr>'
-            '<tr><td>Crítico</td><td>—</td><td>9,0-10,0</td><td>9,0-10,0</td></tr>'
-            '</tbody>'
+            f'<tbody>{body_html}</tbody>'
             '</table>'
             '<div class="cvss-tooltip-footnote">* Em CVSS, score 0.0 indica ausência de impacto mensurável.</div>'
             '</div>'
@@ -777,6 +895,7 @@ class ReportGenerator:
         high_count = 0
         medium_count = 0
         low_count = 0
+        unknown_count = 0
         
         for vulns in vulnerabilities_data.values():
             for vuln in vulns:
@@ -789,6 +908,8 @@ class ReportGenerator:
                     medium_count += 1
                 elif severity == 'LOW':
                     low_count += 1
+                else:
+                    unknown_count += 1
 
         outdated_components_count = sum(
             1
@@ -800,6 +921,7 @@ class ReportGenerator:
         high_severity_description = self._get_severity_description('HIGH')
         medium_severity_description = self._get_severity_description('MEDIUM')
         low_severity_description = self._get_severity_description('LOW')
+        unknown_severity_description = self._get_severity_description('UNKNOWN')
 
         vuln_type_legend = self._build_vuln_type_legend(vulnerable_components)
         
@@ -811,6 +933,21 @@ class ReportGenerator:
             displayed_dependencies_count,
             len(vulnerable_components),
             outdated_components_count,
+        )
+        severity_distribution_chart_data = json.dumps(
+            {
+                "labels": ["Críticas", "Altas", "Médias", "Baixas", "Sem severidade"],
+                "data": [critical_count, high_count, medium_count, low_count, unknown_count],
+                "background_colors": [
+                    "rgba(231, 76, 60, 0.55)",
+                    "rgba(230, 126, 34, 0.55)",
+                    "rgba(243, 156, 18, 0.55)",
+                    "rgba(74, 144, 217, 0.55)",
+                    "rgba(127, 140, 141, 0.55)",
+                ],
+                "border_colors": ["#e74c3c", "#e67e22", "#f39c12", "#4a90d9", "#7f8c8d"],
+            },
+            ensure_ascii=False,
         )
         report_css = self._load_report_css()
         
@@ -910,18 +1047,72 @@ class ReportGenerator:
                     </div>
                 </div>
 
-                <h3 class="section-subtitle"><i class="bi bi-bar-chart"></i> Status dos Componentes</h3>
-                <div class="chart-container status-chart">
-                    <canvas id="componentStatusChart"></canvas>
+                <div class="overview-charts-grid">
+                    <div class="chart-panel">
+                        <h3 class="section-subtitle"><i class="bi bi-bar-chart"></i> Status dos Componentes</h3>
+                        <div class="chart-toolbar">
+                            <div id="component-chart-controls" class="chart-type-switch" role="group" aria-label="Tipo de visualização do gráfico">
+                                <button type="button" class="chart-type-btn active" data-chart-type="bar">Barras</button>
+                                <button type="button" class="chart-type-btn" data-chart-type="doughnut">Donut</button>
+                                <button type="button" class="chart-type-btn" data-chart-type="line">Linhas</button>
+                            </div>
+                        </div>
+                        <div class="chart-container status-chart">
+                            <canvas id="componentStatusChart"></canvas>
+                        </div>
+                        <div class="chart-legend-note">Comparativo entre total identificado, componentes com vulnerabilidades e componentes com atualização recomendada.</div>
+                    </div>
+
+                    <div class="chart-panel">
+                        <h3 class="section-subtitle"><i class="bi bi-pie-chart"></i> Distribuição por Severidade</h3>
+                        <div class="chart-toolbar">
+                            <div id="severity-chart-controls" class="chart-type-switch" role="group" aria-label="Tipo de visualização do gráfico de severidade">
+                                <button type="button" class="chart-type-btn active" data-chart-type="bar">Barras</button>
+                                <button type="button" class="chart-type-btn" data-chart-type="doughnut">Donut</button>
+                                <button type="button" class="chart-type-btn" data-chart-type="line">Linhas</button>
+                            </div>
+                        </div>
+                        <div class="chart-container status-chart">
+                            <canvas id="severityDistributionChart"></canvas>
+                        </div>
+                        <div class="chart-legend-note">Quantidade de vulnerabilidades por severidade: críticas, altas, médias, baixas e sem severidade definida.</div>
+                    </div>
                 </div>
-                <div class="chart-legend-note">Comparativo entre total identificado, componentes com vulnerabilidades e componentes com atualização recomendada.</div>
                 <script>
                     const statusCtx = document.getElementById('componentStatusChart').getContext('2d');
                     const componentStatusData = {component_status_chart_data};
-                    
-                    new Chart(statusCtx, {{
-                        type: 'bar',
-                        data: {{
+                    const severityCtx = document.getElementById('severityDistributionChart').getContext('2d');
+                    const severityDistributionData = {severity_distribution_chart_data};
+
+                    const chartTypeButtons = document.querySelectorAll('#component-chart-controls .chart-type-btn');
+                    const severityChartTypeButtons = document.querySelectorAll('#severity-chart-controls .chart-type-btn');
+                    let componentStatusChart = null;
+                    let severityDistributionChart = null;
+
+                    function getStatusChartConfig(chartType) {{
+                        if (chartType === 'line') {{
+                            return {{
+                                labels: ['Base', 'Quantidade'],
+                                datasets: componentStatusData.labels.map(function(label, index) {{
+                                    const value = Number(componentStatusData.data[index] ?? 0);
+                                    const color = componentStatusData.border_colors[index];
+
+                                    return {{
+                                        label: label,
+                                        data: [0, value],
+                                        borderColor: color,
+                                        backgroundColor: color,
+                                        borderWidth: 2,
+                                        tension: 0.25,
+                                        fill: false,
+                                        pointRadius: 4,
+                                        pointHoverRadius: 6
+                                    }};
+                                }})
+                            }};
+                        }}
+
+                        return {{
                             labels: componentStatusData.labels,
                             datasets: [{{
                                 data: componentStatusData.data,
@@ -929,11 +1120,18 @@ class ReportGenerator:
                                 borderColor: componentStatusData.border_colors,
                                 borderWidth: 2
                             }}]
-                        }},
-                        options: {{
+                        }};
+                    }}
+
+                    function getStatusChartOptions(chartType) {{
+                        const isDonut = chartType === 'doughnut';
+                        const isLine = chartType === 'line';
+
+                        return {{
                             responsive: true,
                             maintainAspectRatio: false,
-                            scales: {{
+                            cutout: isDonut ? '60%' : undefined,
+                            scales: isDonut ? {{}} : {{
                                 x: {{
                                     ticks: {{
                                         color: '#d0d0d0',
@@ -964,7 +1162,16 @@ class ReportGenerator:
                             }},
                             plugins: {{
                                 legend: {{
-                                    display: false
+                                    display: isDonut || isLine,
+                                    position: 'bottom',
+                                    labels: {{
+                                        color: '#d0d0d0',
+                                        font: {{
+                                            family: "'Montserrat', sans-serif",
+                                            size: 12,
+                                            weight: '600'
+                                        }}
+                                    }}
                                 }},
                                 tooltip: {{
                                     backgroundColor: 'rgba(0,0,0,0.8)',
@@ -983,17 +1190,165 @@ class ReportGenerator:
                                     callbacks: {{
                                         label: function(context) {{
                                             const label = context.label || '';
-                                            const value = context.parsed;
+                                            const value = Number(context.raw ?? 0);
                                             return label + ': ' + value;
                                         }}
                                     }}
                                 }}
                             }}
+                        }};
+                    }}
+
+                    function renderComponentStatusChart(chartType) {{
+                        if (componentStatusChart) {{
+                            componentStatusChart.destroy();
                         }}
+
+                        componentStatusChart = new Chart(statusCtx, {{
+                            type: chartType,
+                            data: getStatusChartConfig(chartType),
+                            options: getStatusChartOptions(chartType)
+                        }});
+                    }}
+
+                    function getSeverityDistributionChartOptions(chartType) {{
+                        const isDonut = chartType === 'doughnut';
+                        const isLine = chartType === 'line';
+
+                        return {{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: isDonut ? '58%' : undefined,
+                            scales: isDonut ? {{}} : {{
+                                x: {{
+                                    ticks: {{
+                                        color: '#d0d0d0',
+                                        font: {{
+                                            family: "'Montserrat', sans-serif",
+                                            size: 12,
+                                            weight: '600'
+                                        }}
+                                    }},
+                                    grid: {{
+                                        color: 'rgba(255,255,255,0.06)'
+                                    }}
+                                }},
+                                y: {{
+                                    beginAtZero: true,
+                                    ticks: {{
+                                        precision: 0,
+                                        color: '#d0d0d0',
+                                        font: {{
+                                            family: "'Montserrat', sans-serif",
+                                            size: 12
+                                        }}
+                                    }},
+                                    grid: {{
+                                        color: 'rgba(255,255,255,0.08)'
+                                    }}
+                                }}
+                            }},
+                            plugins: {{
+                                legend: {{
+                                    display: isDonut || isLine,
+                                    position: 'bottom',
+                                    labels: {{
+                                        color: '#d0d0d0',
+                                        font: {{
+                                            family: "'Montserrat', sans-serif",
+                                            size: 12,
+                                            weight: '600'
+                                        }}
+                                    }}
+                                }},
+                                tooltip: {{
+                                    backgroundColor: 'rgba(0,0,0,0.8)',
+                                    titleColor: '#ffffff',
+                                    bodyColor: '#e0e0e0',
+                                    borderColor: '#4a90d9',
+                                    borderWidth: 1,
+                                    padding: 12,
+                                    titleFont: {{
+                                        size: 13,
+                                        weight: 'bold'
+                                    }},
+                                    bodyFont: {{
+                                        size: 12
+                                    }},
+                                    callbacks: {{
+                                        label: function(context) {{
+                                            const label = context.label || context.dataset.label || '';
+                                            const value = Number(context.raw ?? 0);
+                                            return label + ': ' + value;
+                                        }}
+                                    }}
+                                }}
+                            }}
+                        }};
+                    }}
+
+                    function renderSeverityDistributionChart(chartType) {{
+                        if (severityDistributionChart) {{
+                            severityDistributionChart.destroy();
+                        }}
+
+                        const isLine = chartType === 'line';
+
+                        severityDistributionChart = new Chart(severityCtx, {{
+                            type: chartType,
+                            data: {{
+                                labels: severityDistributionData.labels,
+                                datasets: [{{
+                                    label: 'Vulnerabilidades',
+                                    data: severityDistributionData.data,
+                                    backgroundColor: severityDistributionData.background_colors,
+                                    borderColor: severityDistributionData.border_colors,
+                                    borderWidth: 2,
+                                    tension: isLine ? 0.25 : 0,
+                                    fill: false,
+                                    pointRadius: isLine ? 4 : 0,
+                                    pointHoverRadius: isLine ? 6 : 0
+                                }}]
+                            }},
+                            options: getSeverityDistributionChartOptions(chartType)
+                        }});
+                    }}
+
+                    function setActiveChartTypeButton(chartType) {{
+                        chartTypeButtons.forEach(function(button) {{
+                            button.classList.toggle('active', button.dataset.chartType === chartType);
+                        }});
+                    }}
+
+                    function setActiveSeverityChartTypeButton(chartType) {{
+                        severityChartTypeButtons.forEach(function(button) {{
+                            button.classList.toggle('active', button.dataset.chartType === chartType);
+                        }});
+                    }}
+
+                    chartTypeButtons.forEach(function(button) {{
+                        button.addEventListener('click', function() {{
+                            const selectedType = button.dataset.chartType;
+                            setActiveChartTypeButton(selectedType);
+                            renderComponentStatusChart(selectedType);
+                        }});
                     }});
+
+                    severityChartTypeButtons.forEach(function(button) {{
+                        button.addEventListener('click', function() {{
+                            const selectedType = button.dataset.chartType;
+                            setActiveSeverityChartTypeButton(selectedType);
+                            renderSeverityDistributionChart(selectedType);
+                        }});
+                    }});
+
+                    setActiveChartTypeButton('bar');
+                    renderComponentStatusChart('bar');
+                    setActiveSeverityChartTypeButton('bar');
+                    renderSeverityDistributionChart('bar');
                 </script>
                 
-                <h3 class="section-subtitle"><i class="bi bi-bullseye"></i> Distribuição por Severidade</h3>
+                <h3 class="section-subtitle"><i class="bi bi-bullseye"></i> Detalhamento por Severidade</h3>
                 <div class="stats-grid">
                     <div class="stat-card critical">
                         <div class="icon"><i class="bi bi-exclamation-octagon-fill"></i></div>
@@ -1035,6 +1390,17 @@ class ReportGenerator:
                             <span class="severity-chip">
                                 Baixas
                                 <span class="tooltip">{low_severity_description}</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card neutral">
+                        <div class="icon"><i class="bi bi-question-circle-fill"></i></div>
+                        <div class="number">{unknown_count}</div>
+                        <div class="label">
+                            <span class="severity-chip">
+                                Sem severidade
+                                <span class="tooltip">{unknown_severity_description}</span>
                             </span>
                         </div>
                     </div>
