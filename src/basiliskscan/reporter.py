@@ -1467,7 +1467,7 @@ class ReportGenerator:
                 <h2 class="section-title"><i class="bi bi-shield-exclamation"></i> Vulnerabilidades Detectadas</h2>'''
 
         if vuln_type_legend:
-            html_content += '''
+            html_content += f'''
                 <div class="vuln-type-legend" id="vuln-type-filters">
                     <button type="button" class="vuln-type vuln-type-filter active" data-vuln-type-filter="all">
                         <i class="bi bi-funnel"></i> Todas
