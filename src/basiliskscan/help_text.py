@@ -19,7 +19,7 @@ RECURSOS PRINCIPAIS:
 
   • Detecção automática de manifests e lockfiles suportados
 
-  • Busca de vulnerabilidades agregando OSV + NVD
+  • Busca de vulnerabilidades agregando OSV + NVD + Sonatype Guide
 
   • Cache local para acelerar consultas repetidas de vulnerabilidades
 
@@ -35,7 +35,9 @@ ARQUIVOS SUPORTADOS:
 
 CONFIGURAÇÃO OPCIONAL:
 
-  • Defina NVD_API_KEY em um arquivo .env para ampliar as consultas ao NVD
+  • Defina NVD_API_KEY em .env para ampliar consultas ao NVD
+
+  • Para Sonatype Guide, use `bscan sonatype-guide-key --prompt`
 
   • O OSV funciona sem credenciais e o cache do módulo de ingestão é usado automaticamente
 
@@ -57,7 +59,7 @@ quando disponíveis e gera um relatório estruturado no final.
 
   🧬 Oculta dependências transitivas por padrão quando vierem de lockfiles; use --include-transitive para incluí-las
 
-  🛡️ Consulta vulnerabilidades agregando OSV + NVD, com cache local para acelerar novas execuções
+  🛡️ Consulta vulnerabilidades agregando OSV + NVD + Sonatype Guide, com cache local para acelerar novas execuções
 
   🔑 Carrega NVD_API_KEY automaticamente de um arquivo .env quando disponível
 

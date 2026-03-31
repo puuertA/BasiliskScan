@@ -7,6 +7,7 @@ from .base import VulnerabilitySource
 from .config import get_config
 from .nvd import NVDClient
 from .osv import OSVClient
+from .sonatype_guide import SonatypeGuideClient
 from .normalizer import VulnerabilityNormalizer
 
 
@@ -17,6 +18,7 @@ class VulnerabilityAggregator:
         self,
         use_osv: bool = True,
         use_nvd: bool = True,
+        use_sonatype_guide: bool = True,
         sources: Optional[List[VulnerabilitySource]] = None,
     ):
         """
@@ -25,6 +27,7 @@ class VulnerabilityAggregator:
         Args:
             use_osv: Usar OSV como fonte
             use_nvd: Usar NVD como fonte
+            use_sonatype_guide: Usar Sonatype Guide como fonte
             sources: Fontes customizadas para testes/injeção
         """
         self.sources = list(sources or [])
@@ -36,6 +39,9 @@ class VulnerabilityAggregator:
             if use_nvd:
                 config = get_config()
                 self.sources.append(NVDClient(api_key=config.get_nvd_api_key()))
+
+            if use_sonatype_guide:
+                self.sources.append(SonatypeGuideClient())
     
     def fetch_vulnerabilities(
         self,
@@ -116,6 +122,11 @@ class VulnerabilityAggregator:
             for vuln_data in raw_data:
                 normalized.append(
                     VulnerabilityNormalizer.normalize_nvd_vulnerability(vuln_data)
+                )
+        elif isinstance(source, SonatypeGuideClient):
+            for component_data in raw_data:
+                normalized.extend(
+                    VulnerabilityNormalizer.normalize_sonatype_guide_component(component_data)
                 )
         
         return normalized

@@ -4,7 +4,7 @@ Exemplo de uso do sistema de cache do ingest.
 
 from basiliskscan.ingest.cache_manager import CacheManager
 from basiliskscan.ingest.nvd import NVDClient
-from basiliskscan.ingest.oss_index import OSSIndexClient
+from basiliskscan.ingest.sonatype_guide import SonatypeGuideClient
 from basiliskscan.ingest.config import get_config
 
 
@@ -48,17 +48,17 @@ def exemplo_cache_json():
     config = get_config()
     username, token = config.get_oss_index_credentials()
     
-    # Cliente OSS Index com cache JSON
-    oss_index = OSSIndexClient(
-        api_key=token,
+    # Cliente Sonatype Guide com cache JSON
+    sonatype_guide = SonatypeGuideClient(
+        token=token,
         username=username,
         cache_manager=cache_manager,
         use_cache=True
     )
     
     # Busca com cache JSON
-    print("Buscando no OSS Index...")
-    vulns = oss_index.get_vulnerabilities("express", ecosystem="npm")
+    print("Buscando na Sonatype Guide...")
+    vulns = sonatype_guide.get_vulnerabilities("express", ecosystem="npm")
     print(f"Encontradas {len(vulns)} vulnerabilidades\n")
     
     # Estatísticas

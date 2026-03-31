@@ -223,7 +223,7 @@ class SQLiteCache:
         """Extrai o ID da vulnerabilidade baseado na fonte."""
         if source == "NVD":
             return vuln.get("cve", {}).get("id")
-        elif source == "OSS Index":
+        elif source in {"OSS Index", "Sonatype Guide"}:
             return vuln.get("id")
         return None
     

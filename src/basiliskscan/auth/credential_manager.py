@@ -71,8 +71,16 @@ class CredentialManager:
         "oss_index": {
             "fields": ("username", "token"),
             "env": {
-                "username": ("OSS_INDEX_USERNAME", "OSSINDEX_USERNAME"),
-                "token": ("OSS_INDEX_TOKEN", "OSSINDEX_TOKEN"),
+                "username": (
+                    "OSS_INDEX_USERNAME",
+                    "OSSINDEX_USERNAME",
+                    "SONATYPE_GUIDE_USERNAME",
+                ),
+                "token": (
+                    "OSS_INDEX_TOKEN",
+                    "OSSINDEX_TOKEN",
+                    "SONATYPE_GUIDE_TOKEN",
+                ),
             },
         },
         "osv": {

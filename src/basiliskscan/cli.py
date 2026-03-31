@@ -7,7 +7,13 @@ from .config import APP_VERSION, APP_NAME
 from .env import load_dotenv
 from .help_text import APP_DESCRIPTION
 from .ui import BasiliskGroup, UIHelper
-from .commands import scan_command
+from .commands import (
+    scan_command,
+    nvd_key_command,
+    nvd_register_guide_command,
+    sonatype_guide_key_command,
+    sonatype_guide_register_guide_command,
+)
 
 
 @click.group(
@@ -32,6 +38,10 @@ def cli(ctx):
 
 # Adiciona o comando scan ao grupo principal
 cli.add_command(scan_command, name="scan")
+cli.add_command(nvd_key_command, name="nvd-key")
+cli.add_command(nvd_register_guide_command, name="nvd-register-guide")
+cli.add_command(sonatype_guide_key_command, name="sonatype-guide-key")
+cli.add_command(sonatype_guide_register_guide_command, name="sonatype-guide-register-guide")
 
 
 if __name__ == "__main__":

@@ -284,6 +284,14 @@ class TestReporter(unittest.TestCase):
         self.assertIn('id="vuln-type-filters"', html)
         self.assertIn('data-vuln-type-filter="all"', html)
         self.assertIn('data-vuln-type="security-issue"', html)
+        self.assertIn('id="vuln-sort-select"', html)
+        self.assertIn('id="vuln-severity-filter"', html)
+        self.assertIn('id="vuln-search-input"', html)
+        self.assertIn('id="vuln-results-summary"', html)
+        self.assertIn('id="vuln-current-sort"', html)
+        self.assertIn('id="vuln-cards-container"', html)
+        self.assertIn('data-max-severity-score="4"', html)
+        self.assertIn('data-vuln-count="1"', html)
 
     def test_generate_html_report_shows_transitive_hidden_note(self):
         dependencies = [

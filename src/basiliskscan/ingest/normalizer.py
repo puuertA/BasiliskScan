@@ -219,6 +219,18 @@ class VulnerabilityNormalizer:
             )
         
         return normalized
+
+    @staticmethod
+    def normalize_sonatype_guide_component(component_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Normaliza vulnerabilidades retornadas pela Sonatype Guide."""
+        normalized = VulnerabilityNormalizer.normalize_oss_index_component(component_data)
+        for vuln in normalized:
+            vuln["source"] = "Sonatype Guide"
+            sources = vuln.get("sources") or ["Sonatype Guide"]
+            if "Sonatype Guide" not in sources:
+                sources.append("Sonatype Guide")
+            vuln["sources"] = sources
+        return normalized
     
     @staticmethod
     def normalize_osv_vulnerability(osv_data: Dict[str, Any]) -> Dict[str, Any]:

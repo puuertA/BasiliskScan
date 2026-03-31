@@ -102,12 +102,15 @@ class DependencyScanner:
         
         self.console.print()
 
+        processed_messages: List[str] = []
+
         with Progress(
             SpinnerColumn(),
             BarColumn(),
             TextColumn("[bold blue]{task.description}"),
             TimeElapsedColumn(),
             transient=False,
+            console=self.console,
         ) as progress:
             task = progress.add_task("📋 Processando arquivos de dependências...", total=len(files))
             
@@ -118,14 +121,18 @@ class DependencyScanner:
                     parser = get_parser_for_file(f.name)
                     file_deps = parser(f)
                     deps.extend(file_deps)
-                    
-                    self.console.print(f"   ✓ [green]{f.name}[/green]: {len(file_deps)} dependência(s) extraída(s)")
+                    processed_messages.append(
+                        f"   ✓ [green]{f.name}[/green]: {len(file_deps)} dependência(s) extraída(s)"
+                    )
                     
                 except Exception as e:
-                    self.console.print(f"   ❌ [red]Erro ao processar {f.name}[/red]: {str(e)}")
+                    processed_messages.append(f"   ❌ [red]Erro ao processar {f.name}[/red]: {str(e)}")
                     continue
                 
                 progress.advance(task)
+
+        for message in processed_messages:
+            self.console.print(message)
         
         self.console.print()
         return deps

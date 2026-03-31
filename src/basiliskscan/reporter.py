@@ -1486,6 +1486,49 @@ class ReportGenerator:
 
             html_content += '''
                 </div>'''
+
+        if vulnerable_components:
+            html_content += f'''
+                <div class="vuln-controls" id="vuln-controls">
+                    <div class="vuln-control">
+                        <label for="vuln-sort-select">Ordenar componentes</label>
+                        <select id="vuln-sort-select">
+                            <option value="severity-desc">Severidade (maior primeiro)</option>
+                            <option value="severity-asc">Severidade (menor primeiro)</option>
+                            <option value="count-desc">Quantidade de vulnerabilidades (maior primeiro)</option>
+                            <option value="count-asc">Quantidade de vulnerabilidades (menor primeiro)</option>
+                            <option value="name-asc">Nome do componente (A-Z)</option>
+                            <option value="name-desc">Nome do componente (Z-A)</option>
+                        </select>
+                    </div>
+                    <div class="vuln-control">
+                        <label for="vuln-severity-filter">Filtrar severidade</label>
+                        <select id="vuln-severity-filter">
+                            <option value="all">Todas as severidades ({total_vulnerabilities})</option>
+                            <option value="critical">Crítica ({critical_count})</option>
+                            <option value="high">Alta ({high_count})</option>
+                            <option value="medium">Média ({medium_count})</option>
+                            <option value="low">Baixa ({low_count})</option>
+                            <option value="unknown">Sem severidade ({unknown_count})</option>
+                        </select>
+                    </div>
+                    <div class="vuln-control">
+                        <label for="vuln-search-input">Buscar por CVE/componente/texto</label>
+                        <input id="vuln-search-input" type="search" placeholder="Ex: CVE-2022, log4j, injection" />
+                    </div>
+                </div>
+                <div class="vuln-results-summary" id="vuln-results-summary">
+                    Exibindo
+                    <span class="value" id="vuln-visible-count">{total_vulnerabilities}</span>
+                    de
+                    <span class="value" id="vuln-total-count">{total_vulnerabilities}</span>
+                    vulnerabilidade(s) em
+                    <span class="value" id="vuln-visible-components">{len(vulnerable_components)}</span>
+                    componente(s).
+                    Ordenação:
+                    <span class="value" id="vuln-current-sort">Severidade (maior primeiro)</span>
+                </div>
+                <div id="vuln-cards-container">'''
         
         if vulnerable_components:
             for comp_idx, comp in enumerate(vulnerable_components):
@@ -1494,6 +1537,7 @@ class ReportGenerator:
                 comp_version = comp.get('version_spec', 'N/A')
                 vulns = comp.get('vulnerabilities', [])
                 component_expand_id = f"component-{comp_idx}"
+                max_severity_score = int(comp.get('max_severity_score', 0) or 0)
                 
                 # Determinar severidade máxima
                 max_severity = 'low'
@@ -1508,7 +1552,7 @@ class ReportGenerator:
                         max_severity = 'medium'
                 
                 html_content += f'''
-                <div class="vuln-card {max_severity}">
+                <div class="vuln-card {max_severity}" data-component-name="{html.escape(str(comp_name).lower())}" data-max-severity-score="{max_severity_score}" data-vuln-count="{len(vulns)}">
                     <div class="vuln-card-header">
                         <div class="component-name">
                             <span>{comp_name}</span>
@@ -1568,7 +1612,7 @@ class ReportGenerator:
                     expand_id = f"desc-{comp_name}-{idx}"
                     
                     html_content += f'''
-                        <div class="vuln-item {severity}" data-vuln-type="{vuln_type_slug}">
+                        <div class="vuln-item {severity}" data-vuln-type="{vuln_type_slug}" data-severity="{severity}">
                             <div class="vuln-header">
                                 <div class="vuln-id">{vuln_id}</div>
                                 <span class="severity-badge {severity}">{severity_icon} {severity.upper()}<span class="tooltip">{severity_description}</span></span>
@@ -1624,6 +1668,8 @@ class ReportGenerator:
                 html_content += '''
                     </div>
                 </div>
+                </div>'''
+            html_content += '''
                 </div>'''
         else:
             html_content += '''
@@ -1769,39 +1815,187 @@ class ReportGenerator:
             }}
         }}
 
-        function applyVulnTypeFilter(filterType) {{
+        const vulnState = {{
+            typeFilter: 'all',
+            severityFilter: 'all',
+            searchText: '',
+            sortOrder: 'severity-desc'
+        }};
+
+        function getSeveritySortValue(card) {{
+            return Number(card.dataset.maxSeverityScore || 0);
+        }}
+
+        function getVulnCountSortValue(card) {{
+            return Number(card.dataset.vulnCount || 0);
+        }}
+
+        function getVulnerabilityCards(container) {{
+            if (!container) {{
+                return [];
+            }}
+            return Array.from(container.children).filter(function(child) {{
+                return child.classList && child.classList.contains('vuln-card');
+            }});
+        }}
+
+        function getSortOrderLabel(sortOrder) {{
+            const labels = {{
+                'severity-desc': 'Severidade (maior primeiro)',
+                'severity-asc': 'Severidade (menor primeiro)',
+                'count-desc': 'Quantidade de vulnerabilidades (maior primeiro)',
+                'count-asc': 'Quantidade de vulnerabilidades (menor primeiro)',
+                'name-asc': 'Nome do componente (A-Z)',
+                'name-desc': 'Nome do componente (Z-A)'
+            }};
+            return labels[sortOrder] || labels['severity-desc'];
+        }}
+
+        function updateCurrentSortLabel() {{
+            const sortLabelEl = document.getElementById('vuln-current-sort');
+            if (sortLabelEl) {{
+                sortLabelEl.textContent = getSortOrderLabel(vulnState.sortOrder);
+            }}
+        }}
+
+        function compareVulnCards(left, right, order) {{
+            const leftName = (left.dataset.componentName || '').toLowerCase();
+            const rightName = (right.dataset.componentName || '').toLowerCase();
+
+            if (order === 'severity-asc') {{
+                return getSeveritySortValue(left) - getSeveritySortValue(right) || leftName.localeCompare(rightName);
+            }}
+            if (order === 'count-desc') {{
+                return getVulnCountSortValue(right) - getVulnCountSortValue(left) || leftName.localeCompare(rightName);
+            }}
+            if (order === 'count-asc') {{
+                return getVulnCountSortValue(left) - getVulnCountSortValue(right) || leftName.localeCompare(rightName);
+            }}
+            if (order === 'name-asc') {{
+                return leftName.localeCompare(rightName);
+            }}
+            if (order === 'name-desc') {{
+                return rightName.localeCompare(leftName);
+            }}
+
+            return getSeveritySortValue(right) - getSeveritySortValue(left) || leftName.localeCompare(rightName);
+        }}
+
+        function sortVulnerabilityCards() {{
+            const container = document.getElementById('vuln-cards-container');
+            if (!container) {{
+                return;
+            }}
+
+            const cards = getVulnerabilityCards(container);
+            if (cards.length < 2) {{
+                updateCurrentSortLabel();
+                return;
+            }}
+
+            cards.sort(function(a, b) {{
+                return compareVulnCards(a, b, vulnState.sortOrder);
+            }});
+
+            const fragment = document.createDocumentFragment();
+            cards.forEach(function(card) {{
+                fragment.appendChild(card);
+            }});
+            container.appendChild(fragment);
+            updateCurrentSortLabel();
+        }}
+
+        function updateVulnSummary(visibleVulns, visibleComponents) {{
+            const visibleCountEl = document.getElementById('vuln-visible-count');
+            const visibleComponentsEl = document.getElementById('vuln-visible-components');
+            if (visibleCountEl) {{
+                visibleCountEl.textContent = String(visibleVulns);
+            }}
+            if (visibleComponentsEl) {{
+                visibleComponentsEl.textContent = String(visibleComponents);
+            }}
+        }}
+
+        function applyVulnerabilityFilters() {{
             const vulnItems = document.querySelectorAll('#vulnerabilities .vuln-item[data-vuln-type]');
+            const search = (vulnState.searchText || '').toLowerCase();
+
             vulnItems.forEach(function(item) {{
-                const shouldShow = filterType === 'all' || item.dataset.vulnType === filterType;
+                const matchesType = vulnState.typeFilter === 'all' || item.dataset.vulnType === vulnState.typeFilter;
+                const matchesSeverity = vulnState.severityFilter === 'all' || item.dataset.severity === vulnState.severityFilter;
+                const searchableText = item.textContent.toLowerCase();
+                const matchesSearch = !search || searchableText.includes(search);
+                const shouldShow = matchesType && matchesSeverity && matchesSearch;
                 item.classList.toggle('vuln-item-hidden', !shouldShow);
             }});
 
             const vulnCards = document.querySelectorAll('#vulnerabilities .vuln-card');
+            let visibleVulns = 0;
+            let visibleComponents = 0;
+
             vulnCards.forEach(function(card) {{
-                const hasVisibleItems = !!card.querySelector('.vuln-item:not(.vuln-item-hidden)');
+                const visibleItems = card.querySelectorAll('.vuln-item:not(.vuln-item-hidden)');
+                const hasVisibleItems = visibleItems.length > 0;
                 card.classList.toggle('vuln-card-hidden', !hasVisibleItems);
+
+                const countLabel = card.querySelector('.vuln-count');
+                if (countLabel) {{
+                    const countText = hasVisibleItems ? visibleItems.length : 0;
+                    countLabel.textContent = `${{countText}} vulnerabilidade(s)`;
+                }}
+
+                if (hasVisibleItems) {{
+                    visibleComponents += 1;
+                    visibleVulns += visibleItems.length;
+                }}
             }});
+
+            updateVulnSummary(visibleVulns, visibleComponents);
         }}
 
         function initVulnTypeFilters() {{
             const filterButtons = document.querySelectorAll('#vuln-type-filters .vuln-type-filter');
-            if (!filterButtons.length) {{
-                return;
-            }}
-
             filterButtons.forEach(function(button) {{
                 button.addEventListener('click', function() {{
                     const filterType = button.dataset.vulnTypeFilter || 'all';
+                    vulnState.typeFilter = filterType;
 
                     filterButtons.forEach(function(btn) {{
                         btn.classList.toggle('active', btn === button);
                     }});
 
-                    applyVulnTypeFilter(filterType);
+                    applyVulnerabilityFilters();
                 }});
             }});
 
-            applyVulnTypeFilter('all');
+            const severityFilterSelect = document.getElementById('vuln-severity-filter');
+            if (severityFilterSelect) {{
+                severityFilterSelect.addEventListener('change', function() {{
+                    vulnState.severityFilter = severityFilterSelect.value || 'all';
+                    applyVulnerabilityFilters();
+                }});
+            }}
+
+            const searchInput = document.getElementById('vuln-search-input');
+            if (searchInput) {{
+                searchInput.addEventListener('input', function() {{
+                    vulnState.searchText = searchInput.value || '';
+                    applyVulnerabilityFilters();
+                }});
+            }}
+
+            const sortSelect = document.getElementById('vuln-sort-select');
+            if (sortSelect) {{
+                sortSelect.value = vulnState.sortOrder;
+                sortSelect.addEventListener('change', function() {{
+                    vulnState.sortOrder = sortSelect.value || 'severity-desc';
+                    sortVulnerabilityCards();
+                    applyVulnerabilityFilters();
+                }});
+            }}
+
+            sortVulnerabilityCards();
+            applyVulnerabilityFilters();
         }}
 
         initVulnTypeFilters();
@@ -1840,10 +2034,12 @@ class ReportGenerator:
         output_file_name = pathlib.Path(output_path).name
         output_file = reports_dir / output_file_name
         
-        self.console.print(f"[dim]💾 Salvando relatório em: {output_file}[/dim]")
+        if not progress_callback:
+            self.console.print(f"[dim]💾 Salvando relatório em: {output_file}[/dim]")
         
         if output_file.exists():
-            self.console.print(f"[yellow]⚠️  O arquivo '{output_file}' já existe e será sobrescrito.[/yellow]")
+            if not progress_callback:
+                self.console.print(f"[yellow]⚠️  O arquivo '{output_file}' já existe e será sobrescrito.[/yellow]")
         
         try:
             # Cria diretório resources dentro da pasta reports se não existir
@@ -1861,7 +2057,8 @@ class ReportGenerator:
             if logo_source.exists():
                 shutil.copy2(logo_source, logo_destination)
             else:
-                self.console.print(f"[yellow]⚠️  Logo não encontrado em: {logo_source}[/yellow]")
+                if not progress_callback:
+                    self.console.print(f"[yellow]⚠️  Logo não encontrado em: {logo_source}[/yellow]")
             
             # Salva o HTML
             html_content = self.generate_html_report(report_data)

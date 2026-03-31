@@ -5,6 +5,7 @@ Módulo de ingestão de vulnerabilidades de múltiplas fontes.
 from .base import VulnerabilitySource
 from .nvd import NVDClient
 from .osv import OSVClient
+from .sonatype_guide import SonatypeGuideClient
 from .normalizer import VulnerabilityNormalizer, Severity
 from .config import IngestConfig, get_config
 from .aggregator import VulnerabilityAggregator
@@ -16,6 +17,7 @@ __all__ = [
     'VulnerabilitySource',
     'NVDClient',
     'OSVClient',
+    'SonatypeGuideClient',
     'VulnerabilityNormalizer',
     'Severity',
     'IngestConfig',
