@@ -1584,6 +1584,7 @@ class ReportGenerator:
                         </button>
                     </div>
                     <div class="vuln-card-body" id="{component_expand_id}">
+                    <div class="component-section-label"><i class="bi bi-box-seam"></i> Componente analisado</div>
                     <div class="component-info">
                         <div class="info-item">
                             <div class="info-label"><i class="bi bi-pin-angle"></i> Versão Instalada</div>
@@ -1598,7 +1599,8 @@ class ReportGenerator:
                             <div class="info-value path">{comp.get('declared_in', 'N/A')}</div>
                         </div>
                     </div>
-                    
+
+                    <div class="vuln-section-label"><i class="bi bi-diagram-3"></i> Vulnerabilidades deste componente ({len(vulns)})</div>
                     <div class="vuln-list">'''
                 
                 for idx, vuln in enumerate(vulns):

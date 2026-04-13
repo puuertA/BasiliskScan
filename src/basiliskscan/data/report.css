@@ -393,6 +393,8 @@
             overflow: hidden;
             opacity: 0;
             transition: max-height 0.5s ease, opacity 0.3s ease;
+            --tree-axis-x: 22px;
+            --vuln-indent: 56px;
         }
 
         .vuln-card-body.expanded {
@@ -401,7 +403,7 @@
             opacity: 1;
             margin-top: 15px;
         }
-        
+
         .component-name {
             font-size: 1.5em;
             font-weight: 700;
@@ -470,6 +472,17 @@
             padding: 15px;
             background: rgba(0,0,0,0.2);
             border-radius: 8px;
+            position: relative;
+        }
+
+        .component-info::after {
+            content: '';
+            position: absolute;
+            left: var(--tree-axis-x);
+            top: 100%;
+            width: 2px;
+            height: 20px;
+            background: linear-gradient(180deg, rgba(74, 144, 217, 0.75), rgba(74, 144, 217, 0.35));
         }
         
         .info-item {
@@ -503,18 +516,82 @@
         .info-value.fixed {
             color: #2ecc71;
         }
+
+        .component-section-label,
+        .vuln-section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82em;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #aeb9c6;
+            background: rgba(74, 144, 217, 0.12);
+            border: 1px solid rgba(74, 144, 217, 0.35);
+            border-radius: 999px;
+            padding: 6px 12px;
+        }
+
+        .component-section-label {
+            margin: 4px 0 12px 0;
+        }
+
+        .vuln-section-label {
+            margin: 10px 0 10px 0;
+        }
         
         /* Vulnerability List */
         .vuln-list {
-            margin-top: 20px;
+            margin-top: 0;
+            position: relative;
+            padding-left: var(--vuln-indent);
+        }
+
+        .vuln-list::before {
+            content: '';
+            position: absolute;
+            left: var(--tree-axis-x);
+            top: 0;
+            bottom: 18px;
+            width: 2px;
+            background: linear-gradient(180deg, rgba(74, 144, 217, 0.75), rgba(74, 144, 217, 0.25));
+        }
+
+        .vuln-list::after {
+            content: none;
         }
         
         .vuln-item {
-            background: rgba(0,0,0,0.3);
+            position: relative;
+            background: rgba(255,255,255,0.02);
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 15px;
+            border: 1px solid #3a3a3a;
             border-left: 3px solid #404040;
+        }
+
+        .vuln-item::before {
+            content: '';
+            position: absolute;
+            left: calc(var(--tree-axis-x) - var(--vuln-indent));
+            top: 26px;
+            width: calc(var(--vuln-indent) - var(--tree-axis-x));
+            height: 2px;
+            background: #4a90d9;
+        }
+
+        .vuln-item::after {
+            content: '';
+            position: absolute;
+            left: calc(var(--tree-axis-x) - var(--vuln-indent) - 5px);
+            top: 22px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4a90d9;
+            box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.16);
         }
         
         .vuln-item.critical {
@@ -540,7 +617,7 @@
         .vuln-card-hidden {
             display: none;
         }
-        
+
         .vuln-header {
             display: flex;
             justify-content: space-between;
@@ -1259,4 +1336,29 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+
+            .vuln-list {
+                padding-left: var(--vuln-indent);
+            }
+
+            .vuln-card-body {
+                --tree-axis-x: 16px;
+                --vuln-indent: 42px;
+            }
+
+            .vuln-list::before {
+                left: var(--tree-axis-x);
+            }
+
+            .vuln-item::before {
+                left: calc(var(--tree-axis-x) - var(--vuln-indent));
+                width: calc(var(--vuln-indent) - var(--tree-axis-x));
+                top: 24px;
+            }
+
+            .vuln-item::after {
+                left: calc(var(--tree-axis-x) - var(--vuln-indent) - 5px);
+                top: 20px;
+            }
+
         }
