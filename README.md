@@ -123,6 +123,7 @@ bscan scan --project ./meu-app --output relatorio-deps.html
 | `--project` | `-p` | Diretório do projeto a ser analisado | `.` (atual) |
 | `--url` | `-u` | Modo alternativo de especificação do projeto | - |
 | `--output` | `-o` | Arquivo de saída para o relatório HTML | `dependencies_report.html` |
+| `--offline` | - | Usa apenas o banco local de vulnerabilidades (sem consultas online) | `false` |
 | `--help` | `-h` | Exibe ajuda detalhada | - |
 
 ### Exemplos Práticos
@@ -157,6 +158,27 @@ start dependencies_report.html
 
 # Exemplo: abrir no navegador padrão (Linux/Mac)
 open dependencies_report.html
+```
+
+### Banco Offline de Vulnerabilidades
+
+O BasiliskScan mantém um banco local consolidado para permitir execução offline.
+
+```bash
+# Ver status e estatísticas do banco local
+bscan offline-db --status
+
+# Sincronização semanal/manual de componentes vencidos
+bscan offline-db --sync
+
+# Força atualização completa de todos os componentes rastreados
+bscan offline-db --sync --force
+
+# Atualiza banco com base nas dependências de um projeto específico
+bscan offline-db --sync --project ./meu-projeto
+
+# Executa o scan usando somente dados locais
+bscan scan --offline
 ```
 
 ## 📊 Formato de Saída

@@ -83,6 +83,8 @@ quando disponíveis e gera um relatório estruturado no final.
 
   bscan scan --include-transitive         # Inclui dependências transitivas no relatório e na análise
 
+  bscan scan --offline                    # Usa somente o banco local de vulnerabilidades (sem consultas online)
+
   bscan scan -u ~/projetos/api --output relatorio.html  # URL + saída customizada
 
 ⚠️  DICAS IMPORTANTES:
@@ -123,3 +125,8 @@ INCLUDE_TRANSITIVE_OPTION_HELP = """Inclui dependências transitivas no relatór
 
 Por padrão, dependências transitivas extraídas de lockfiles são ocultadas para
 reduzir ruído visual. Ative esta opção para auditorias mais profundas."""
+
+OFFLINE_OPTION_HELP = """Executa análise de vulnerabilidades usando apenas o banco local offline.
+
+Não consulta APIs externas durante o scan. Ideal para ambientes sem internet.
+Use o comando `bscan offline-db --sync --force` para atualizar o banco local."""

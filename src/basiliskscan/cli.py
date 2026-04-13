@@ -13,6 +13,7 @@ from .commands import (
     nvd_register_guide_command,
     sonatype_guide_key_command,
     sonatype_guide_register_guide_command,
+    offline_db_command,
 )
 
 
@@ -42,6 +43,7 @@ cli.add_command(nvd_key_command, name="nvd-key")
 cli.add_command(nvd_register_guide_command, name="nvd-register-guide")
 cli.add_command(sonatype_guide_key_command, name="sonatype-guide-key")
 cli.add_command(sonatype_guide_register_guide_command, name="sonatype-guide-register-guide")
+cli.add_command(offline_db_command, name="offline-db")
 
 
 if __name__ == "__main__":

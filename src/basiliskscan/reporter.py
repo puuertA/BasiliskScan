@@ -184,6 +184,7 @@ class ReportGenerator:
         vulnerabilities: Optional[Dict[str, List[Dict]]] = None,
         all_dependencies: Optional[List[Dict]] = None,
         report_options: Optional[Dict[str, object]] = None,
+        duration_seconds: Optional[float] = None,
     ) -> Dict:
         """
         Gera os dados estruturados do relatório.
@@ -198,7 +199,12 @@ class ReportGenerator:
         Returns:
             Dicionário com dados estruturados do relatório
         """
-        self.stop_timer()
+        if duration_seconds is None:
+            self.stop_timer()
+            total_duration = round(self.scan_duration, 2)
+        else:
+            total_duration = round(max(float(duration_seconds), 0.0), 2)
+            self.scan_duration = total_duration
         
         return {
             "scan_metadata": {
@@ -208,7 +214,7 @@ class ReportGenerator:
                 "scan_timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                 "target_path": str(target_path),
                 "output_file": output_file,
-                "duration_seconds": round(self.scan_duration, 2)
+                "duration_seconds": total_duration
             },
             "project_info": {
                 "path": str(target_path),
@@ -230,6 +236,19 @@ class ReportGenerator:
         reports_dir = pathlib.Path.cwd() / "reports"
         reports_dir.mkdir(exist_ok=True)
         return reports_dir
+
+    @staticmethod
+    def _format_duration_label(duration_seconds: float) -> str:
+        """Formata duração em `mm:ss` ou `hh:mm:ss` para exibição no relatório."""
+        safe_seconds = max(float(duration_seconds or 0.0), 0.0)
+        rounded_seconds = int(round(safe_seconds))
+
+        hours, remainder = divmod(rounded_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
     
     def _get_vuln_type(self, description: str) -> tuple:
         """Extrai o tipo de vulnerabilidade da descrição e retorna (tipo, explicação)."""
@@ -927,6 +946,7 @@ class ReportGenerator:
         
         project_name = pathlib.Path(scan_metadata["target_path"]).name
         duration = scan_metadata.get('duration_seconds', 0)
+        duration_label = self._format_duration_label(duration)
         
         # Gerar dados para o gráfico de status dos componentes
         component_status_chart_data = self._build_component_status_chart_data(
@@ -985,7 +1005,7 @@ class ReportGenerator:
                 </div>
                 <div class="scan-info-item">
                     <div class="label"><i class="bi bi-stopwatch"></i> Tempo de Execução</div>
-                    <div class="value">{duration}s</div>
+                    <div class="value">{duration_label}</div>
                 </div>
                 <div class="scan-info-item">
                     <div class="label"><i class="bi bi-tools"></i> Ferramenta</div>
@@ -1042,7 +1062,7 @@ class ReportGenerator:
                     
                     <div class="stat-card info">
                         <div class="icon"><i class="bi bi-stopwatch"></i></div>
-                        <div class="number">{duration}s</div>
+                        <div class="number">{duration_label}</div>
                         <div class="label">Tempo de Execução</div>
                     </div>
                 </div>
@@ -2075,6 +2095,31 @@ class ReportGenerator:
             raise PermissionError(f"Sem permissão para escrever no arquivo: {output_file}")
         except OSError as e:
             raise OSError(f"Erro ao salvar o relatório: {e}")
+
+    def update_saved_report_duration(self, output_path: str, duration_seconds: float) -> None:
+        """Atualiza o tempo de execução no HTML já salvo em disco."""
+        report_file = pathlib.Path(output_path)
+        if not report_file.exists():
+            return
+
+        formatted_duration = self._format_duration_label(duration_seconds)
+        content = report_file.read_text(encoding="utf-8")
+
+        updated_content = re.sub(
+            r'(<div class="label"><i class="bi bi-stopwatch"></i> Tempo de Execução</div>\s*<div class="value">)([^<]*)(</div>)',
+            rf'\g<1>{formatted_duration}\g<3>',
+            content,
+            count=1,
+        )
+        updated_content = re.sub(
+            r'(<div class="number">)([^<]*)(</div>\s*<div class="label">Tempo de Execução</div>)',
+            rf'\g<1>{formatted_duration}\g<3>',
+            updated_content,
+            count=1,
+        )
+
+        if updated_content != content:
+            report_file.write_text(updated_content, encoding="utf-8")
     
     def display_scan_results(self, dependencies: List[Dict], ecosystems: Dict, output_file: str, vulnerabilities: Optional[Dict[str, List[Dict]]] = None) -> None:
         """

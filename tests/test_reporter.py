@@ -2,6 +2,7 @@
 
 import pathlib
 import re
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -379,6 +380,41 @@ class TestReporter(unittest.TestCase):
         self.assertEqual(report_data["project_info"]["dependency_count"], 1)
         self.assertIn('<i class="bi bi-box-seam"></i> Dependências (1)', html)
         self.assertIn('<div class="number">1</div>', html)
+
+    def test_generate_report_data_respects_explicit_duration(self):
+        report_data = self.reporter.generate_report_data(
+            target_path=pathlib.Path("C:/repo/frontend"),
+            dependencies=[],
+            ecosystems={},
+            output_file="report.html",
+            vulnerabilities={},
+            duration_seconds=79.4,
+        )
+
+        self.assertEqual(report_data["scan_metadata"]["duration_seconds"], 79.4)
+
+    def test_update_saved_report_duration_updates_both_duration_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report_path = pathlib.Path(tmp) / "report.html"
+            report_path.write_text(
+                """
+                <div class=\"label\"><i class=\"bi bi-stopwatch\"></i> Tempo de Execução</div>
+                <div class=\"value\">00:04</div>
+                <div class=\"number\">00:04</div>
+                <div class=\"label\">Tempo de Execução</div>
+                """,
+                encoding="utf-8",
+            )
+
+            self.reporter.update_saved_report_duration(str(report_path), 79.4)
+            content = report_path.read_text(encoding="utf-8")
+
+            self.assertIn("<div class=\"value\">01:19</div>", content)
+            self.assertIn("<div class=\"number\">01:19</div>", content)
+
+    def test_format_duration_label_formats_minutes_and_hours(self):
+        self.assertEqual(self.reporter._format_duration_label(79.4), "01:19")
+        self.assertEqual(self.reporter._format_duration_label(3661), "01:01:01")
 
     def test_generate_html_report_overview_total_matches_grouped_tab_count(self):
         dependencies = [

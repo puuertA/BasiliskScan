@@ -2,6 +2,7 @@
 """Comando de varredura de dependências."""
 
 import pathlib
+import time
 from typing import Optional
 import click
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
@@ -14,12 +15,14 @@ from ..help_text import (
     OUTPUT_OPTION_HELP,
     SKIP_VULNS_OPTION_HELP,
     INCLUDE_TRANSITIVE_OPTION_HELP,
+    OFFLINE_OPTION_HELP,
 )
 from ..ui import BasiliskCommand, UIHelper, validate_target_path, handle_file_save_error
 from ..env import load_dotenv
 from ..scanner import DependencyScanner
 from ..reporter import ReportGenerator
 from ..ingest.aggregator import VulnerabilityAggregator
+from ..ingest.offline_sync import OfflineSyncService
 from ..updater import DependencyUpdateService
 
 
@@ -117,12 +120,19 @@ def _build_unique_components_for_vuln_scan(dependencies: list[dict]) -> list[dic
     default=False,
     help=INCLUDE_TRANSITIVE_OPTION_HELP,
 )
+@click.option(
+    "--offline",
+    is_flag=True,
+    default=False,
+    help=OFFLINE_OPTION_HELP,
+)
 def scan_command(
     project: str,
     url: Optional[str],
     output: str,
     skip_vulns: bool,
     include_transitive: bool,
+    offline: bool,
 ):
     """
     🚀 Executa uma varredura completa de dependências no projeto alvo.
@@ -136,6 +146,7 @@ def scan_command(
     ui = UIHelper()
     scanner = DependencyScanner(ui.console)
     reporter = ReportGenerator(ui.console)
+    scan_started_at = time.monotonic()
     
     # Exibe header da aplicação
     ui.display_app_header()
@@ -212,10 +223,12 @@ def scan_command(
         
         # Buscar vulnerabilidades se não for pulado
         vulnerabilities = {}
+        offline_sync_service: Optional[OfflineSyncService] = None
         if not skip_vulns and dependencies:
             ui.console.print("[cyan]🔍 Buscando vulnerabilidades...[/cyan]")
             
             try:
+                offline_sync_service = OfflineSyncService()
                 aggregator = VulnerabilityAggregator()
                 
                 # Preparar componentes únicos para busca
@@ -224,29 +237,46 @@ def scan_command(
                 # Debug: mostrar componentes que serão verificados
                 ui.console.print(f"[dim]Debug: Componentes a verificar: {[c['name'] for c in components_to_check[:5]]}{'...' if len(components_to_check) > 5 else ''}[/dim]")
                 ui.console.print(f"[dim]Debug: Total único para consulta: {len(components_to_check)}[/dim]")
+
+                if offline:
+                    ui.console.print("[yellow]📦 Modo offline ativo: usando apenas banco local de vulnerabilidades[/yellow]")
+                    vulnerabilities = offline_sync_service.get_vulnerabilities_for_components(components_to_check)
+                else:
+                    auto_sync_summary = offline_sync_service.run_weekly_auto_sync_if_needed()
+                    if auto_sync_summary and auto_sync_summary.get("processed", 0) > 0:
+                        ui.console.print(
+                            "[dim]↻ Atualização semanal automática do banco offline concluída: "
+                            f"{auto_sync_summary['synced']}/{auto_sync_summary['processed']} componente(s).[/dim]"
+                        )
                 
                 # Buscar vulnerabilidades em paralelo
-                ui.console.print(f"[dim]   Analisando {len(components_to_check)} componente(s)...[/dim]")
-                with Progress(
-                    SpinnerColumn(),
-                    BarColumn(),
-                    TextColumn("[bold blue]{task.description}"),
-                    TimeElapsedColumn(),
-                    console=ui.console,
-                ) as progress:
-                    task = progress.add_task(
-                        "🔍 Consultando fontes de vulnerabilidades...",
-                        total=len(components_to_check),
-                    )
+                if not offline:
+                    ui.console.print(f"[dim]   Analisando {len(components_to_check)} componente(s)...[/dim]")
+                    with Progress(
+                        SpinnerColumn(),
+                        BarColumn(),
+                        TextColumn("[bold blue]{task.description}"),
+                        TimeElapsedColumn(),
+                        console=ui.console,
+                    ) as progress:
+                        task = progress.add_task(
+                            "🔍 Consultando fontes de vulnerabilidades...",
+                            total=len(components_to_check),
+                        )
 
-                    def update_vulnerability_progress(component_name: str):
-                        progress.update(task, description=f"🔍 Analisando {component_name}...")
-                        progress.advance(task)
+                        def update_vulnerability_progress(component_name: str):
+                            progress.update(task, description=f"🔍 Analisando {component_name}...")
+                            progress.advance(task)
 
-                    vulnerabilities = aggregator.fetch_multiple_components(
-                        components_to_check,
-                        parallel=True,
-                        progress_callback=update_vulnerability_progress,
+                        vulnerabilities = aggregator.fetch_multiple_components(
+                            components_to_check,
+                            parallel=True,
+                            progress_callback=update_vulnerability_progress,
+                        )
+
+                    offline_sync_service.ingest_scan_results(
+                        components=components_to_check,
+                        vulnerabilities_by_name=vulnerabilities,
                     )
                 
                 # Debug: mostrar chaves retornadas
@@ -269,6 +299,9 @@ def scan_command(
                 ui.console.print(f"[yellow]⚠️  Erro ao buscar vulnerabilidades: {str(e)}[/yellow]")
                 ui.console.print("[dim]   Continuando sem análise de vulnerabilidades...[/dim]")
                 vulnerabilities = {}
+            finally:
+                if offline_sync_service:
+                    offline_sync_service.close()
         elif skip_vulns:
             ui.console.print("[dim]🔍 Análise de vulnerabilidades pulada (--skip-vulns)[/dim]")
         
@@ -284,6 +317,7 @@ def scan_command(
                 "include_transitive": include_transitive,
                 "transitive_hidden_count": filtered_count,
             },
+            duration_seconds=(time.monotonic() - scan_started_at),
         )
         
         try:
@@ -311,6 +345,13 @@ def scan_command(
                     output,
                     progress_callback=update_report_progress,
                 )
+
+            duration_after_write = time.monotonic() - scan_started_at
+            reporter.update_saved_report_duration(final_output_path, duration_after_write)
+
+            duration_after_duration_patch = time.monotonic() - scan_started_at
+            if abs(duration_after_duration_patch - duration_after_write) >= 0.01:
+                reporter.update_saved_report_duration(final_output_path, duration_after_duration_patch)
         except Exception as e:
             handle_file_save_error(e, output)
         

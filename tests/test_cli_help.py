@@ -28,9 +28,19 @@ class TestCLIHelp(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("--skip-vulns", result.output)
         self.assertIn("--include-transitive", result.output)
+        self.assertIn("--offline", result.output)
         self.assertIn("reports/", result.output)
         self.assertIn("OSV + NVD + Sonatype Guide", result.output)
         self.assertIn("Node.js/Ionic e Java", result.output)
+
+    def test_offline_db_help_mentions_sync_and_force(self):
+        result = self.runner.invoke(cli, ["offline-db", "--help"], prog_name="bscan")
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--status", result.output)
+        self.assertIn("--sync", result.output)
+        self.assertIn("--force", result.output)
+        self.assertIn("--clear", result.output)
 
 
 if __name__ == "__main__":
