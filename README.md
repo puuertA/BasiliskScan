@@ -164,6 +164,9 @@ open dependencies_report.html
 
 O BasiliskScan mantém um banco local consolidado para permitir execução offline.
 
+- Caminho padrão do banco: `resources/offline/offline_vulnerabilities.db`
+- Override opcional por variável de ambiente: `BASILISKSCAN_OFFLINE_DB_DIR`
+
 ```bash
 # Ver status e estatísticas do banco local
 bscan offline-db --status

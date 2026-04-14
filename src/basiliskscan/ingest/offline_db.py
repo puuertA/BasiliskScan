@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 from datetime import datetime, timedelta
@@ -13,8 +14,15 @@ from typing import Any, Dict, List, Optional
 class OfflineVulnerabilityDB:
     """Armazena vulnerabilidades normalizadas para uso offline e sincronização periódica."""
 
-    DEFAULT_DB_DIR = Path.home() / ".basiliskscan" / "offline"
+    DEFAULT_DB_DIR = Path(__file__).resolve().parents[3] / "resources" / "offline"
     DEFAULT_DB_FILE = "offline_vulnerabilities.db"
+
+    @classmethod
+    def _resolve_default_db_dir(cls) -> Path:
+        env_dir = os.getenv("BASILISKSCAN_OFFLINE_DB_DIR")
+        if env_dir:
+            return Path(env_dir).expanduser().resolve()
+        return cls.DEFAULT_DB_DIR
 
     def __init__(
         self,
@@ -22,7 +30,7 @@ class OfflineVulnerabilityDB:
         db_file: str = DEFAULT_DB_FILE,
         refresh_interval_days: int = 7,
     ):
-        self.db_dir = db_dir or self.DEFAULT_DB_DIR
+        self.db_dir = db_dir or self._resolve_default_db_dir()
         self.db_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.db_dir / db_file
         self.refresh_interval_days = int(refresh_interval_days)
