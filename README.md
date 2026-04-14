@@ -17,7 +17,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.1-red.svg)](https://github.com/PuertA/basiliskscan)
+[![Version](https://img.shields.io/badge/version-1.0.0-red.svg)](https://github.com/PuertA/basiliskscan)
 
 </div>
 
