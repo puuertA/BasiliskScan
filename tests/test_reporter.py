@@ -42,6 +42,45 @@ class TestReporter(unittest.TestCase):
         labels = [badge["label"] for badge in status["badges"]]
         self.assertEqual(labels, ["Vulnerável"])
 
+    def test_build_dependency_status_ignores_invalid_fixed_version_token(self):
+        dep = {"name": "legacy-lib", "version_spec": "1.0.0"}
+        vulns = [{"id": "CVE-1", "fixed_version": "none"}]
+
+        status = self.reporter._build_dependency_status(dep, vulns)
+
+        self.assertTrue(status["is_vulnerable"])
+        self.assertFalse(status["has_update"])
+        self.assertIsNone(status["recommended_version"])
+
+    def test_resolve_fixed_version_from_description_prefers_upgrade_target(self):
+        vuln = {
+            "id": "CVE-2026-25537",
+            "description": (
+                "The vulnerability has been fixed in jsPDF 4.1.1. "
+                "Upgrade to jspdf@>=4.2.0."
+            ),
+        }
+
+        fixed_version = self.reporter._resolve_fixed_version(vuln)
+
+        self.assertEqual(fixed_version, "4.2.0")
+
+    def test_build_dependency_status_uses_inferred_fixed_version(self):
+        dep = {"name": "jspdf", "version_spec": "4.0.0"}
+        vulns = [
+            {
+                "id": "CVE-2026-25537",
+                "fixed_version": "none",
+                "description": "Patched in 4.1.1. Upgrade to jspdf@>=4.2.0.",
+            }
+        ]
+
+        status = self.reporter._build_dependency_status(dep, vulns)
+
+        self.assertTrue(status["is_vulnerable"])
+        self.assertTrue(status["has_update"])
+        self.assertEqual(status["recommended_version"], "4.2.0")
+
     def test_build_dependency_status_secure_with_update(self):
         dep = {"name": "safe-lib", "version_spec": "1.0.0", "latest_version": "1.1.0"}
 
@@ -52,6 +91,77 @@ class TestReporter(unittest.TestCase):
         labels = [badge["label"] for badge in status["badges"]]
         self.assertIn("Seguro", labels)
         self.assertIn("Atualização disponível", labels)
+
+    def test_find_dependency_vulnerabilities_ignores_fixed_version_already_applied(self):
+        dep = {
+            "name": "bcrypt",
+            "ecosystem": "npm",
+            "version_spec": "5.1.1",
+        }
+        vulnerabilities_data = {
+            "bcrypt": [
+                {
+                    "id": "GHSA-xxxx-yyyy-zzzz",
+                    "fixed_version": "5.0.0",
+                }
+            ]
+        }
+
+        vulns = self.reporter._find_dependency_vulnerabilities(dep, vulnerabilities_data)
+
+        self.assertEqual(vulns, [])
+
+    def test_find_dependency_vulnerabilities_keeps_vuln_when_below_fixed_version(self):
+        dep = {
+            "name": "bcrypt",
+            "ecosystem": "npm",
+            "version_spec": "4.0.1",
+        }
+        vulnerabilities_data = {
+            "bcrypt": [
+                {
+                    "id": "GHSA-xxxx-yyyy-zzzz",
+                    "fixed_version": "5.0.0",
+                }
+            ]
+        }
+
+        vulns = self.reporter._find_dependency_vulnerabilities(dep, vulnerabilities_data)
+
+        self.assertEqual(len(vulns), 1)
+        self.assertEqual(vulns[0]["id"], "GHSA-xxxx-yyyy-zzzz")
+
+    def test_find_dependency_vulnerabilities_respects_osv_range_events(self):
+        dep = {
+            "name": "bcrypt",
+            "ecosystem": "npm",
+            "version_spec": "5.1.1",
+        }
+        vulnerabilities_data = {
+            "bcrypt": [
+                {
+                    "id": "OSV-TEST",
+                    "affected_products": [
+                        {
+                            "name": "bcrypt",
+                            "ecosystem": "npm",
+                            "ranges": [
+                                {
+                                    "events": [
+                                        {"introduced": "0"},
+                                        {"fixed": "5.0.0"},
+                                    ]
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        vulns = self.reporter._find_dependency_vulnerabilities(dep, vulnerabilities_data)
+
+        self.assertEqual(vulns, [])
 
     def test_build_vulnerable_components_groups_npm_manifest_and_lockfile(self):
         dependencies = [

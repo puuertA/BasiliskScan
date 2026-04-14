@@ -36,6 +36,62 @@ class TestNormalizer(unittest.TestCase):
 
         self.assertEqual(normalized["fixed_version"], "4.17.21")
 
+    def test_normalize_osv_ignores_invalid_fixed_version_token(self):
+        osv_data = {
+            "id": "GHSA-test-invalid-fixed",
+            "summary": "Test advisory",
+            "affected": [
+                {
+                    "package": {
+                        "ecosystem": "npm",
+                        "name": "bcrypt"
+                    },
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [
+                                {"introduced": "0"},
+                                {"fixed": "none"}
+                            ]
+                        }
+                    ],
+                }
+            ]
+        }
+
+        normalized = VulnerabilityNormalizer.normalize_osv_vulnerability(osv_data)
+
+        self.assertIsNone(normalized["fixed_version"])
+
+    def test_merge_vulnerabilities_replaces_invalid_fixed_version(self):
+        vulns = [
+            {
+                "id": "CVE-TEST-1",
+                "source": "OSV",
+                "severity": Severity.HIGH.value,
+                "score": 7.0,
+                "cvss": {},
+                "references": [],
+                "affected_products": [],
+                "fixed_version": "none",
+            },
+            {
+                "id": "CVE-TEST-1",
+                "source": "NVD",
+                "severity": Severity.HIGH.value,
+                "score": 7.0,
+                "cvss": {},
+                "references": [],
+                "affected_products": [],
+                "fixed_version": "5.0.0",
+            },
+        ]
+
+        merged = VulnerabilityNormalizer.merge_vulnerabilities(vulns)
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]["fixed_version"], "5.0.0")
+
     def test_normalize_nvd_vulnerability_prefers_cvss_v4(self):
         nvd_data = {
             "cve": {

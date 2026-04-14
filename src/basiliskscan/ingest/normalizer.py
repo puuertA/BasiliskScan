@@ -19,13 +19,38 @@ class Severity(Enum):
 class VulnerabilityNormalizer:
     """Normaliza dados de vulnerabilidades de diferentes fontes para um formato comum."""
 
+    _INVALID_FIXED_VERSION_TOKENS = {
+        "none",
+        "null",
+        "n/a",
+        "na",
+        "unknown",
+        "not available",
+        "-",
+    }
+
+    @staticmethod
+    def _clean_fixed_version(value: Any) -> Optional[str]:
+        """Normaliza `fixed_version` removendo placeholders inválidos."""
+        if value is None:
+            return None
+
+        normalized = str(value).strip().strip('"').strip("'")
+        if not normalized:
+            return None
+
+        if normalized.lower() in VulnerabilityNormalizer._INVALID_FIXED_VERSION_TOKENS:
+            return None
+
+        return normalized
+
     @staticmethod
     def _extract_fixed_version(affected_list: List[Dict[str, Any]]) -> Optional[str]:
         """Extrai a primeira versão corrigida informada nos ranges do advisory."""
         for affected in affected_list:
             for range_info in affected.get("ranges", []):
                 for event in range_info.get("events", []):
-                    fixed_version = event.get("fixed")
+                    fixed_version = VulnerabilityNormalizer._clean_fixed_version(event.get("fixed"))
                     if fixed_version:
                         return fixed_version
 
@@ -462,12 +487,19 @@ class VulnerabilityNormalizer:
                 # Mescla produtos afetados
                 existing["affected_products"].extend(vuln.get("affected_products", []))
 
-                if not existing.get("fixed_version") and vuln.get("fixed_version"):
-                    existing["fixed_version"] = vuln["fixed_version"]
+                existing_fixed = VulnerabilityNormalizer._clean_fixed_version(existing.get("fixed_version"))
+                incoming_fixed = VulnerabilityNormalizer._clean_fixed_version(vuln.get("fixed_version"))
+                if not existing_fixed and incoming_fixed:
+                    existing["fixed_version"] = incoming_fixed
+                elif existing_fixed:
+                    existing["fixed_version"] = existing_fixed
                 
             else:
                 # Nova vulnerabilidade
                 merged[vuln_id] = vuln.copy()
+                merged[vuln_id]["fixed_version"] = VulnerabilityNormalizer._clean_fixed_version(
+                    merged[vuln_id].get("fixed_version")
+                )
                 merged[vuln_id]["sources"] = [vuln["source"]]
         
         return list(merged.values())

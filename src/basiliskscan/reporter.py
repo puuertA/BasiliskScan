@@ -10,6 +10,7 @@ import os
 import re
 from datetime import datetime
 from typing import Callable, Dict, List, Optional
+from packaging.version import InvalidVersion, Version
 from rich.console import Console
 from deep_translator import GoogleTranslator
 
@@ -18,6 +19,16 @@ from .config import APP_NAME, APP_VERSION, ECOSYSTEM_EMOJIS
 
 class ReportGenerator:
     """Gerador de relatórios de análise de dependências."""
+
+    _INVALID_FIXED_VERSION_TOKENS = {
+        "none",
+        "null",
+        "n/a",
+        "na",
+        "unknown",
+        "not available",
+        "-",
+    }
     
     def __init__(self, console: Console = None):
         """
@@ -476,18 +487,263 @@ class ReportGenerator:
         # Formato simplificado - pode ser melhorado com ecosystem-specific
         return f"https://ossindex.sonatype.org/component/pkg:npm/{component_name}"
 
-    def _find_dependency_vulnerabilities(self, dep_name: str, vulnerabilities_data: Dict[str, List[Dict]]) -> List[Dict]:
-        """Localiza vulnerabilidades por nome com fallback case-insensitive."""
+    def _sanitize_fixed_version_text(self, value: object) -> Optional[str]:
+        """Normaliza `fixed_version` textual removendo placeholders inválidos."""
+        if value is None:
+            return None
+
+        normalized = str(value).strip().strip('"').strip("'")
+        if not normalized:
+            return None
+
+        if normalized.lower() in self._INVALID_FIXED_VERSION_TOKENS:
+            return None
+
+        return normalized
+
+    def _resolve_fixed_version(self, vuln: Dict) -> Optional[str]:
+        """Resolve versão corrigida a partir do campo explícito ou inferência textual."""
+        explicit_fixed = self._sanitize_fixed_version_text(vuln.get("fixed_version"))
+        if explicit_fixed:
+            return explicit_fixed
+
+        candidate_versions: List[str] = []
+
+        description = str(vuln.get("description", "") or "").strip()
+        candidate_versions.extend(self._extract_fixed_versions_from_text(description))
+
+        raw_data = vuln.get("raw_data") or {}
+        if isinstance(raw_data, dict):
+            summary = str(raw_data.get("summary", "") or "").strip()
+            details = str(raw_data.get("details", "") or "").strip()
+            candidate_versions.extend(self._extract_fixed_versions_from_text(summary))
+            candidate_versions.extend(self._extract_fixed_versions_from_text(details))
+
+            cve = raw_data.get("cve") or {}
+            if isinstance(cve, dict):
+                for item in cve.get("descriptions", []) or []:
+                    if not isinstance(item, dict):
+                        continue
+                    candidate_versions.extend(
+                        self._extract_fixed_versions_from_text(str(item.get("value", "") or ""))
+                    )
+
+        if not candidate_versions:
+            return None
+
+        return self._pick_highest_version(candidate_versions)
+
+    def _extract_fixed_versions_from_text(self, text: str) -> List[str]:
+        """Extrai possíveis versões corrigidas a partir de texto de advisory."""
+        if not text:
+            return []
+
+        patterns = [
+            r"(?:upgrade|update)\s+to\s+(?:[\w.-]+@)?\s*(?:>=|=>|=|v)?\s*(\d+(?:\.\d+){1,3}(?:[-+._]?[0-9A-Za-z]+)?)",
+            r"(?:fixed|patched|resolved|mitigated)\s+(?:in|by)\s+(?:version\s+)?(?:[\w.-]+@)?\s*(?:>=|=>|=|v)?\s*(\d+(?:\.\d+){1,3}(?:[-+._]?[0-9A-Za-z]+)?)",
+            r"(?:before|prior\s+to)\s+(\d+(?:\.\d+){1,3}(?:[-+._]?[0-9A-Za-z]+)?)",
+        ]
+
+        candidates: List[str] = []
+        for pattern in patterns:
+            for match in re.findall(pattern, text, flags=re.IGNORECASE):
+                cleaned = self._sanitize_fixed_version_text(match)
+                if cleaned:
+                    candidates.append(cleaned)
+
+        return candidates
+
+    def _pick_highest_version(self, versions: List[str]) -> Optional[str]:
+        """Escolhe a maior versão válida entre candidatas textuais."""
+        parsed_candidates: List[tuple[Version, str]] = []
+        for item in versions:
+            parsed = self._parse_version(item)
+            if parsed is not None:
+                parsed_candidates.append((parsed, item))
+
+        if not parsed_candidates:
+            return None
+
+        parsed_candidates.sort(key=lambda entry: entry[0])
+        return parsed_candidates[-1][1]
+
+    def _find_dependency_vulnerabilities(self, dep: Dict, vulnerabilities_data: Dict[str, List[Dict]]) -> List[Dict]:
+        """Localiza vulnerabilidades por nome e filtra aplicabilidade por versão/ecossistema."""
+        dep_name = str(dep.get("name", "") or "").strip()
+        if not dep_name:
+            return []
+
         dep_vulns = vulnerabilities_data.get(dep_name, [])
 
-        if dep_vulns:
-            return dep_vulns
+        if not dep_vulns:
+            for vuln_key, vuln_list in vulnerabilities_data.items():
+                if str(vuln_key).lower() == dep_name.lower():
+                    dep_vulns = vuln_list
+                    break
 
-        for vuln_key, vuln_list in vulnerabilities_data.items():
-            if vuln_key.lower() == dep_name.lower():
-                return vuln_list
+        return [
+            vuln
+            for vuln in dep_vulns
+            if self._is_vulnerability_applicable(dep, vuln)
+        ]
 
-        return []
+    def _is_vulnerability_applicable(self, dep: Dict, vuln: Dict) -> bool:
+        """Determina se uma vulnerabilidade é aplicável ao componente/versão analisado."""
+        dep_version = self._extract_dependency_version(dep)
+
+        if dep_version:
+            fixed_version = self._parse_version(self._resolve_fixed_version(vuln))
+            if fixed_version and dep_version >= fixed_version:
+                return False
+
+        affected_products = vuln.get("affected_products") or []
+        if not isinstance(affected_products, list) or not affected_products:
+            return True
+
+        dep_name = str(dep.get("name", "") or "").strip().lower()
+        dep_ecosystem = str(dep.get("ecosystem", "") or "").strip().lower()
+
+        has_package_scoped_entries = False
+        matched_package_entries = False
+
+        for affected in affected_products:
+            if not isinstance(affected, dict):
+                continue
+
+            affected_name = str(affected.get("name", "") or "").strip().lower()
+            affected_ecosystem = str(affected.get("ecosystem", "") or "").strip().lower()
+
+            is_package_scoped = bool(affected_name or affected_ecosystem)
+            if is_package_scoped:
+                has_package_scoped_entries = True
+
+                if affected_name and affected_name != dep_name:
+                    continue
+
+                if affected_ecosystem and affected_ecosystem != dep_ecosystem:
+                    continue
+
+                matched_package_entries = True
+
+            if dep_version is None:
+                return True
+
+            if self._is_version_affected(dep_version, affected):
+                return True
+
+        if has_package_scoped_entries:
+            return matched_package_entries and dep_version is None
+
+        return True
+
+    def _is_version_affected(self, dep_version: Version, affected: Dict) -> bool:
+        """Verifica se a versão da dependência está nas faixas/versões afetadas."""
+        versions = affected.get("versions") or []
+        for item in versions:
+            parsed = self._parse_version(item)
+            if parsed and parsed == dep_version:
+                return True
+
+        ranges = affected.get("ranges") or []
+        for range_info in ranges:
+            events = range_info.get("events") or []
+            if self._is_version_in_osv_events(dep_version, events):
+                return True
+
+        version_start = self._parse_version(affected.get("version_start"))
+        version_end = self._parse_version(affected.get("version_end"))
+        if version_start and dep_version < version_start:
+            return False
+        if version_end and dep_version > version_end:
+            return False
+        if version_start or version_end:
+            return True
+
+        if not versions and not ranges:
+            return True
+
+        return False
+
+    def _is_version_in_osv_events(self, dep_version: Version, events: List[Dict]) -> bool:
+        """Avalia se a versão está dentro de uma sequência de eventos OSV."""
+        affected = False
+        has_window = False
+
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+
+            introduced = self._parse_version(event.get("introduced"))
+            if "introduced" in event:
+                has_window = True
+                introduced_raw = str(event.get("introduced") or "").strip()
+                affected = introduced_raw == "0" or (introduced is not None and dep_version >= introduced)
+
+            fixed = self._parse_version(event.get("fixed"))
+            if fixed:
+                has_window = True
+                if dep_version >= fixed:
+                    affected = False
+                elif affected:
+                    return True
+
+            last_affected = self._parse_version(event.get("last_affected"))
+            if last_affected:
+                has_window = True
+                if affected and dep_version <= last_affected:
+                    return True
+                if dep_version > last_affected:
+                    affected = False
+
+            limit = self._parse_version(event.get("limit"))
+            if limit:
+                has_window = True
+                if dep_version >= limit:
+                    affected = False
+
+        if has_window:
+            return affected
+
+        return False
+
+    def _extract_dependency_version(self, dep: Dict) -> Optional[Version]:
+        """Extrai versão comparável da dependência, lidando com formatos comuns de spec."""
+        raw_value = str(dep.get("version_spec", "") or "").strip()
+        if not raw_value:
+            return None
+
+        parts = [part.strip() for part in raw_value.split("/") if part.strip()]
+        if not parts:
+            parts = [raw_value]
+
+        for part in parts:
+            parsed = self._parse_version(part)
+            if parsed:
+                return parsed
+
+        return None
+
+    def _parse_version(self, value: object) -> Optional[Version]:
+        """Converte texto de versão para `Version`, quando possível."""
+        if value is None:
+            return None
+
+        text = str(value).strip().strip('"').strip("'")
+        if not text:
+            return None
+
+        text = re.sub(r"^[~^<>=\s]+", "", text)
+        if not text:
+            return None
+
+        text = text.split(" ")[0].split("||")[0].split(",")[0].strip()
+        if not text:
+            return None
+
+        try:
+            return Version(text)
+        except InvalidVersion:
+            return None
 
     def _component_group_scope(self, dependency: Dict) -> str:
         """Define escopo lógico de agrupamento para evitar duplicações no relatório."""
@@ -517,8 +773,8 @@ class ReportGenerator:
         grouped_components: Dict[tuple, Dict] = {}
 
         for dep in dependencies:
-            dep_name = dep.get("name", "")
-            dep_vulns = self._find_dependency_vulnerabilities(dep_name, vulnerabilities_data)
+            dep_name = str(dep.get("name", "") or "")
+            dep_vulns = self._find_dependency_vulnerabilities(dep, vulnerabilities_data)
             if not dep_vulns:
                 continue
 
@@ -664,7 +920,7 @@ class ReportGenerator:
             return latest_version
 
         for vuln in dep_vulns:
-            fixed_version = (vuln.get("fixed_version") or "").strip()
+            fixed_version = self._resolve_fixed_version(vuln) or ""
             if fixed_version and fixed_version != current_version:
                 return fixed_version
 
@@ -679,8 +935,7 @@ class ReportGenerator:
         statuses: Dict[tuple, Dict[str, object]] = {}
 
         for dep in dependencies:
-            dep_name = dep.get("name", "")
-            dep_vulns = self._find_dependency_vulnerabilities(dep_name, vulnerabilities_data)
+            dep_vulns = self._find_dependency_vulnerabilities(dep, vulnerabilities_data)
             statuses[self._dependency_status_key(dep)] = self._build_dependency_status(dep, dep_vulns)
 
         return statuses
@@ -1458,7 +1713,7 @@ class ReportGenerator:
         
         for dep in grouped_dependencies:
             dep_name = dep.get('name', 'N/A')
-            dep_vulns = self._find_dependency_vulnerabilities(dep_name, vulnerabilities_data)
+            dep_vulns = self._find_dependency_vulnerabilities(dep, vulnerabilities_data)
             status = dependency_statuses.get(self._dependency_status_key(dep)) or self._build_dependency_status(dep, dep_vulns)
             version_html = self._format_dependency_version(dep, status)
             status_badge = self._render_status_badges(status)
@@ -1628,7 +1883,7 @@ class ReportGenerator:
                     nvd_link = self._get_nvd_link(cve_id) if cve_id else ""
                     
                     # Versão corrigida
-                    fixed_version = vuln.get('fixed_version', 'Consulte o advisory')
+                    fixed_version = self._resolve_fixed_version(vuln) or 'Consulte o advisory'
                     
                     # ID único para expansão
                     expand_id = f"desc-{comp_name}-{idx}"
@@ -1724,7 +1979,7 @@ class ReportGenerator:
                     critical_vulns_list = [v for v in vulns if v.get('severity') == 'CRITICAL']
                     
                     for vuln in critical_vulns_list:
-                        fixed_version = vuln.get('fixed_version', 'última versão disponível')
+                        fixed_version = self._resolve_fixed_version(vuln) or 'última versão disponível'
                         html_content += f'''
                 <div class="recommendation-card">
                     <div class="title"><i class="bi bi-shield-exclamation"></i> Atualizar {comp_name} imediatamente</div>
@@ -1744,7 +1999,7 @@ class ReportGenerator:
                     high_vulns_list = [v for v in vulns if v.get('severity') == 'HIGH']
                     
                     for vuln in high_vulns_list:
-                        fixed_version = vuln.get('fixed_version', 'última versão disponível')
+                        fixed_version = self._resolve_fixed_version(vuln) or 'última versão disponível'
                         html_content += f'''
                 <div class="recommendation-card">
                     <div class="title"><i class="bi bi-exclamation-triangle"></i> Atualizar {comp_name} em breve</div>
