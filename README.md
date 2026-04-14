@@ -93,6 +93,24 @@ bscan --version
 bscan --help
 ```
 
+### Atualizando versão do projeto
+
+Para atualizar a versão em lote (inclui `pyproject.toml` e badge de versão do `README.md`):
+
+```bash
+# patch: 1.0.0 -> 1.0.1
+python scripts/bump_version.py patch
+
+# minor: 1.0.1 -> 1.1.0
+python scripts/bump_version.py minor
+
+# major: 1.1.0 -> 2.0.0
+python scripts/bump_version.py major
+
+# definir versão explícita
+python scripts/bump_version.py set 1.2.3
+```
+
 ### Configurando a API key do NVD
 Crie um arquivo `.env` no diretório onde você executa o `bscan`:
 
