@@ -1,5 +1,8 @@
+LICENSE
 README.md
+README.pypi.md
 pyproject.toml
+src/basiliskscan/__init__.py
 src/basiliskscan/cli.py
 src/basiliskscan/config.py
 src/basiliskscan/env.py
@@ -17,7 +20,11 @@ src/basiliskscan.egg-info/top_level.txt
 src/basiliskscan/auth/__init__.py
 src/basiliskscan/auth/credential_manager.py
 src/basiliskscan/commands/__init__.py
+src/basiliskscan/commands/nvd.py
+src/basiliskscan/commands/offline_db.py
 src/basiliskscan/commands/scan.py
+src/basiliskscan/commands/sonatype_guide.py
+src/basiliskscan/data/report.css
 src/basiliskscan/data/vulnerability_types.json
 src/basiliskscan/ingest/__init__.py
 src/basiliskscan/ingest/aggregator.py
@@ -30,7 +37,10 @@ src/basiliskscan/ingest/example_cache_usage.py
 src/basiliskscan/ingest/example_usage.py
 src/basiliskscan/ingest/normalizer.py
 src/basiliskscan/ingest/nvd.py
+src/basiliskscan/ingest/offline_db.py
+src/basiliskscan/ingest/offline_sync.py
 src/basiliskscan/ingest/osv.py
+src/basiliskscan/ingest/sonatype_guide.py
 src/basiliskscan/models/__init__.py
 src/basiliskscan/models/component.py
 src/basiliskscan/models/vulnerability.py
@@ -41,6 +51,7 @@ src/basiliskscan/parsers/nodejs.py
 src/basiliskscan/parsers/purl.py
 tests/test_aggregator_sources.py
 tests/test_cache.py
+tests/test_cli_help.py
 tests/test_credential_manager.py
 tests/test_env_loader.py
 tests/test_ingest.py
@@ -48,7 +59,12 @@ tests/test_java_parser.py
 tests/test_nodejs_parser.py
 tests/test_normalizer.py
 tests/test_nvd_client.py
+tests/test_nvd_commands.py
+tests/test_offline_sync.py
 tests/test_osv_client.py
 tests/test_reporter.py
 tests/test_scan_filters.py
+tests/test_sonatype_guide_client.py
+tests/test_sonatype_guide_commands.py
+tests/test_transitive_filter.py
 tests/test_updater.py
