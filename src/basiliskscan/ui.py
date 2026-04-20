@@ -2,10 +2,49 @@
 """Módulo para customizações da interface de usuário e classes Click personalizadas."""
 
 import click
+import re
+import os
+import sys
 from rich.console import Console
 
 from .help_text import LOGO
 from .config import APP_NAME, APP_VERSION, APP_DESCRIPTION
+
+
+def _configure_windows_stdio_utf8() -> None:
+    if os.name != "nt":
+        return
+
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+
+
+_configure_windows_stdio_utf8()
+
+
+_MARKUP_TAG_RE = re.compile(r"\[[^\]]+\]")
+
+
+def _strip_rich_markup(text: str) -> str:
+    return _MARKUP_TAG_RE.sub("", text)
+
+
+def _sanitize_for_legacy_console(text: str) -> str:
+    return _strip_rich_markup(text).encode("cp1252", errors="replace").decode("cp1252")
+
+
+def _safe_console_print(console: Console, message: str) -> None:
+    try:
+        console.print(message)
+    except UnicodeEncodeError:
+        click.echo(_sanitize_for_legacy_console(message))
 
 
 class BasiliskCommand(click.Command):
@@ -17,10 +56,10 @@ class BasiliskCommand(click.Command):
     
     def get_help(self, ctx):
         """Exibe help personalizado com logo e informações da ferramenta."""
-        self.console.print(f"[bold green]{LOGO}[/bold green]")
-        self.console.print(f"[bold cyan]{APP_NAME} v{APP_VERSION}[/bold cyan]")
-        self.console.print(f"[italic]{APP_DESCRIPTION}[/italic]")
-        self.console.print("[dim]Identifica dependências vulneráveis e desatualizadas em projetos de software[/dim]\n")
+        _safe_console_print(self.console, f"[bold green]{LOGO}[/bold green]")
+        _safe_console_print(self.console, f"[bold cyan]{APP_NAME} v{APP_VERSION}[/bold cyan]")
+        _safe_console_print(self.console, f"[italic]{APP_DESCRIPTION}[/italic]")
+        _safe_console_print(self.console, "[dim]Identifica dependências vulneráveis e desatualizadas em projetos de software[/dim]\n")
         return super().get_help(ctx)
 
 
@@ -33,10 +72,10 @@ class BasiliskGroup(click.Group):
     
     def get_help(self, ctx):
         """Exibe help personalizado com logo e informações da ferramenta."""
-        self.console.print(f"[bold green]{LOGO}[/bold green]")
-        self.console.print(f"[bold cyan]{APP_NAME} v{APP_VERSION}[/bold cyan]")
-        self.console.print(f"[italic]{APP_DESCRIPTION}[/italic]")
-        self.console.print("[dim]Identifica dependências vulneráveis e desatualizadas em projetos de software[/dim]\n")
+        _safe_console_print(self.console, f"[bold green]{LOGO}[/bold green]")
+        _safe_console_print(self.console, f"[bold cyan]{APP_NAME} v{APP_VERSION}[/bold cyan]")
+        _safe_console_print(self.console, f"[italic]{APP_DESCRIPTION}[/italic]")
+        _safe_console_print(self.console, "[dim]Identifica dependências vulneráveis e desatualizadas em projetos de software[/dim]\n")
         return super().get_help(ctx)
 
 
@@ -54,23 +93,23 @@ class UIHelper:
     
     def display_app_header(self) -> None:
         """Exibe o cabeçalho da aplicação com logo e versão."""
-        self.console.print(f"[bold green]{LOGO}[/bold green]")
-        self.console.print(f"[bold cyan]{APP_NAME} v{APP_VERSION}[/bold cyan]")
-        self.console.print("[italic]🛡️ Iniciando Análise de Dependências...[/italic]\n")
+        _safe_console_print(self.console, f"[bold green]{LOGO}[/bold green]")
+        _safe_console_print(self.console, f"[bold cyan]{APP_NAME} v{APP_VERSION}[/bold cyan]")
+        _safe_console_print(self.console, "[italic]🛡️ Iniciando Análise de Dependências...[/italic]\n")
     
     def display_quick_start_help(self) -> None:
         """Exibe as opções de início rápido."""
-        self.console.print("\n[bold green]🚀 INÍCIO RÁPIDO:[/bold green]")
-        self.console.print("  bscan scan                    # Analisa o diretório atual")
-        self.console.print("  bscan scan --skip-vulns       # Gera relatório sem consultar OSV/NVD/Sonatype")
-        self.console.print("  bscan scan --offline          # Usa apenas base local de vulnerabilidades")
-        self.console.print("  bscan scan --include-transitive  # Inclui dependências transitivas")
-        self.console.print("  bscan offline-db --sync --force  # Força atualização do banco offline")
-        self.console.print("  bscan sonatype-guide-key --prompt # Configura token Sonatype Guide")
-        self.console.print("  bscan scan --help             # Ajuda detalhada do comando scan")
-        self.console.print("  bscan --version               # Versão do BasiliskScan")
-        self.console.print("\n[dim]💡 Dica: defina NVD_API_KEY e/ou credenciais Sonatype para enriquecer as consultas[/dim]")
-        self.console.print("\n[dim]💡 Para mais informações, use: bscan scan --help[/dim]")
+        _safe_console_print(self.console, "\n[bold green]🚀 INÍCIO RÁPIDO:[/bold green]")
+        _safe_console_print(self.console, "  bscan scan                    # Analisa o diretório atual")
+        _safe_console_print(self.console, "  bscan scan --skip-vulns       # Gera relatório sem consultar OSV/NVD/Sonatype")
+        _safe_console_print(self.console, "  bscan scan --offline          # Usa apenas base local de vulnerabilidades")
+        _safe_console_print(self.console, "  bscan scan --include-transitive  # Inclui dependências transitivas")
+        _safe_console_print(self.console, "  bscan offline-db --sync --force  # Força atualização do banco offline")
+        _safe_console_print(self.console, "  bscan sonatype-guide-key --prompt # Configura token Sonatype Guide")
+        _safe_console_print(self.console, "  bscan scan --help             # Ajuda detalhada do comando scan")
+        _safe_console_print(self.console, "  bscan --version               # Versão do BasiliskScan")
+        _safe_console_print(self.console, "\n[dim]💡 Dica: defina NVD_API_KEY e/ou credenciais Sonatype para enriquecer as consultas[/dim]")
+        _safe_console_print(self.console, "\n[dim]💡 Para mais informações, use: bscan scan --help[/dim]")
     
     def display_error(self, message: str, suggestion: str = None) -> None:
         """
@@ -80,9 +119,9 @@ class UIHelper:
             message: Mensagem de erro principal
             suggestion: Sugestão opcional para resolver o problema
         """
-        self.console.print(f"[red]❌ {message}[/red]")
+        _safe_console_print(self.console, f"[red]❌ {message}[/red]")
         if suggestion:
-            self.console.print(f"[dim]💡 {suggestion}[/dim]")
+            _safe_console_print(self.console, f"[dim]💡 {suggestion}[/dim]")
     
     def display_warning(self, message: str) -> None:
         """
@@ -91,7 +130,7 @@ class UIHelper:
         Args:
             message: Mensagem de aviso
         """
-        self.console.print(f"[yellow]⚠️  {message}[/yellow]")
+        _safe_console_print(self.console, f"[yellow]⚠️  {message}[/yellow]")
     
     def display_success(self, message: str) -> None:
         """
@@ -100,7 +139,7 @@ class UIHelper:
         Args:
             message: Mensagem de sucesso
         """
-        self.console.print(f"[green]✅ {message}[/green]")
+        _safe_console_print(self.console, f"[green]✅ {message}[/green]")
     
     def display_info(self, message: str, emoji: str = "ℹ️") -> None:
         """
@@ -110,7 +149,7 @@ class UIHelper:
             message: Mensagem informativa
             emoji: Emoji a ser exibido junto da mensagem
         """
-        self.console.print(f"[blue]{emoji} {message}[/blue]")
+        _safe_console_print(self.console, f"[blue]{emoji} {message}[/blue]")
 
 
 def validate_target_path(target_path, url=None):

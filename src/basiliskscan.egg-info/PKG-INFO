@@ -4,9 +4,9 @@ Version: 1.5.3
 Summary: BasiliskScan - CLI para varrer projetos e listar dependências vulneráveis ou desatualizadas.
 Author: PuertA
 License-Expression: MIT
-Project-URL: Homepage, https://github.com/puuertA/basiliskscan
-Project-URL: Repository, https://github.com/puuertA/basiliskscan
-Project-URL: Issues, https://github.com/puuertA/basiliskscan/issues
+Project-URL: Homepage, https://github.com/PuertA/basiliskscan
+Project-URL: Repository, https://github.com/PuertA/basiliskscan
+Project-URL: Issues, https://github.com/PuertA/basiliskscan/issues
 Classifier: Development Status :: 4 - Beta
 Classifier: Environment :: Console
 Classifier: Intended Audience :: Developers
