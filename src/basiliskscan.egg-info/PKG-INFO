@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: basiliskscan
-Version: 1.5.3
+Version: 1.5.4
 Summary: BasiliskScan - CLI para varrer projetos e listar dependências vulneráveis ou desatualizadas.
 Author: PuertA
 License-Expression: MIT
