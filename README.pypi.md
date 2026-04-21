@@ -16,6 +16,14 @@ bscan --help
 bscan scan
 ```
 
+If `bscan` is not recognized on Windows, run once:
+
+```bash
+python -m basiliskscan --help
+```
+
+This command auto-adds your Python Scripts directory to `PATH` (user scope).
+
 ## What BasiliskScan does
 
 - Recursively discovers dependencies in supported manifests
