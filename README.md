@@ -17,7 +17,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.4-red.svg)](https://github.com/PuertA/basiliskscan)
+[![Version](https://img.shields.io/badge/version-1.5.7-red.svg)](https://github.com/PuertA/basiliskscan)
 
 </div>
 
@@ -125,6 +125,26 @@ python scripts/bump_version.py patch
 python scripts/bump_version.py minor
 python scripts/bump_version.py major
 python scripts/bump_version.py set 1.2.3
+```
+
+## PyPI Release Script (PowerShell)
+
+Set your PyPI credentials in the current terminal session and run the release script:
+
+```powershell
+$env:TWINE_USERNAME="__token__"
+$env:TWINE_PASSWORD="pypi-..."
+./scripts/release_pypi.ps1 patch
+```
+
+Useful options:
+
+```powershell
+# build only (no upload)
+./scripts/release_pypi.ps1 patch -SkipUpload
+
+# test build/upload steps without changing version
+./scripts/release_pypi.ps1 patch -SkipBump -SkipUpload
 ```
 
 ## License
