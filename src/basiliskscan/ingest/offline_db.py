@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import shutil
 import threading
 from datetime import datetime, timedelta
+from importlib import resources
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -14,7 +16,9 @@ from typing import Any, Dict, List, Optional
 class OfflineVulnerabilityDB:
     """Armazena vulnerabilidades normalizadas para uso offline e sincronização periódica."""
 
-    DEFAULT_DB_DIR = Path(__file__).resolve().parents[3] / "resources" / "offline"
+    DEFAULT_DB_DIR = Path.home() / ".basiliskscan" / "offline"
+    LEGACY_DB_DIR = Path(__file__).resolve().parents[3] / "resources" / "offline"
+    PACKAGED_DB_PATH = Path("data") / "offline" / "offline_vulnerabilities.db"
     DEFAULT_DB_FILE = "offline_vulnerabilities.db"
 
     @classmethod
@@ -22,7 +26,38 @@ class OfflineVulnerabilityDB:
         env_dir = os.getenv("BASILISKSCAN_OFFLINE_DB_DIR")
         if env_dir:
             return Path(env_dir).expanduser().resolve()
+
+        if cls.LEGACY_DB_DIR.exists():
+            return cls.LEGACY_DB_DIR
+
         return cls.DEFAULT_DB_DIR
+
+    @classmethod
+    def _get_packaged_seed_path(cls) -> Optional[Path]:
+        try:
+            packaged = resources.files("basiliskscan").joinpath(str(cls.PACKAGED_DB_PATH).replace("\\", "/"))
+            if packaged.is_file():
+                return Path(str(packaged))
+        except Exception:
+            return None
+        return None
+
+    def _seed_database_if_missing(self) -> None:
+        if self.db_path.exists():
+            return
+
+        if self.db_path.name != self.DEFAULT_DB_FILE:
+            return
+
+        seed_candidates = [
+            self._get_packaged_seed_path(),
+            self.LEGACY_DB_DIR / self.DEFAULT_DB_FILE,
+        ]
+
+        for seed_path in seed_candidates:
+            if seed_path and seed_path.exists():
+                shutil.copy2(seed_path, self.db_path)
+                return
 
     def __init__(
         self,
@@ -35,6 +70,7 @@ class OfflineVulnerabilityDB:
         self.db_path = self.db_dir / db_file
         self.refresh_interval_days = int(refresh_interval_days)
         self._local = threading.local()
+        self._seed_database_if_missing()
         self._initialize_database()
 
     def _get_connection(self) -> sqlite3.Connection:

@@ -28,6 +28,7 @@ src/basiliskscan/commands/scan.py
 src/basiliskscan/commands/sonatype_guide.py
 src/basiliskscan/data/report.css
 src/basiliskscan/data/vulnerability_types.json
+src/basiliskscan/data/offline/offline_vulnerabilities.db
 src/basiliskscan/ingest/__init__.py
 src/basiliskscan/ingest/aggregator.py
 src/basiliskscan/ingest/base.py
