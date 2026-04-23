@@ -1,6 +1,7 @@
 # src/basiliskscan/scanner.py
 """Módulo responsável pela descoberta e análise de arquivos de dependências."""
 
+import os
 import pathlib
 from typing import List, Dict
 from rich.console import Console
@@ -68,10 +69,18 @@ class DependencyScanner:
             raise NotADirectoryError(f"Path não é um diretório: {root}")
         
         candidates: List[pathlib.Path] = []
-        
+
+        def on_walk_error(error: OSError) -> None:
+            if isinstance(error, PermissionError):
+                self.console.print(f"[yellow]⚠️  Sem permissão para acessar: {error.filename}[/yellow]")
+
         try:
-            for path in root.iterdir():
-                self._walk_directory(path, candidates)
+            for dir_path, dir_names, file_names in os.walk(root, topdown=True, onerror=on_walk_error):
+                dir_names[:] = [name for name in dir_names if name not in IGNORED_DIRS]
+
+                for file_name in file_names:
+                    if file_name in SUPPORTED_FILES:
+                        candidates.append(pathlib.Path(dir_path) / file_name)
         except PermissionError:
             raise PermissionError(f"Sem permissão para acessar o diretório: {root}")
         

@@ -233,10 +233,6 @@ def scan_command(
                 
                 # Preparar componentes únicos para busca
                 components_to_check = _build_unique_components_for_vuln_scan(dependencies)
-                
-                # Debug: mostrar componentes que serão verificados
-                ui.console.print(f"[dim]Debug: Componentes a verificar: {[c['name'] for c in components_to_check[:5]]}{'...' if len(components_to_check) > 5 else ''}[/dim]")
-                ui.console.print(f"[dim]Debug: Total único para consulta: {len(components_to_check)}[/dim]")
 
                 if offline:
                     ui.console.print("[yellow]📦 Modo offline ativo: usando apenas banco local de vulnerabilidades[/yellow]")
@@ -279,19 +275,12 @@ def scan_command(
                         vulnerabilities_by_name=vulnerabilities,
                     )
                 
-                # Debug: mostrar chaves retornadas
-                ui.console.print(f"[dim]Debug: Chaves de vulnerabilidades retornadas: {list(vulnerabilities.keys())}[/dim]")
-                
                 # Contar vulnerabilidades encontradas
                 total_vulns = sum(len(v) for v in vulnerabilities.values())
                 vulns_components = sum(1 for v in vulnerabilities.values() if v)
                 
                 if total_vulns > 0:
                     ui.console.print(f"[yellow]⚠️  Encontradas {total_vulns} vulnerabilidade(s) em {vulns_components} componente(s)[/yellow]")
-                    # Debug: mostrar quais componentes têm vulnerabilidades
-                    for comp_name, vulns in vulnerabilities.items():
-                        if vulns:
-                            ui.console.print(f"[dim]   - {comp_name}: {len(vulns)} vulnerabilidade(s)[/dim]")
                 else:
                     ui.console.print("[green]✅ Nenhuma vulnerabilidade conhecida encontrada[/green]")
                     
@@ -348,10 +337,6 @@ def scan_command(
 
             duration_after_write = time.monotonic() - scan_started_at
             reporter.update_saved_report_duration(final_output_path, duration_after_write)
-
-            duration_after_duration_patch = time.monotonic() - scan_started_at
-            if abs(duration_after_duration_patch - duration_after_write) >= 0.01:
-                reporter.update_saved_report_duration(final_output_path, duration_after_duration_patch)
         except Exception as e:
             handle_file_save_error(e, output)
         

@@ -80,6 +80,20 @@ class ReportGenerator:
         ]
         disable_translation = os.getenv("BASILISKSCAN_DISABLE_TRANSLATION", "").strip().lower()
         self.disable_translation = disable_translation in {"1", "true", "yes", "on"}
+        self._translator: Optional[GoogleTranslator] = None
+        self._sorted_translation_protected_patterns = sorted(
+            self._translation_protected_patterns,
+            key=len,
+            reverse=True,
+        )
+        self._cached_vuln_lookup_data_id: Optional[int] = None
+        self._cached_vuln_lookup: Dict[str, List[Dict]] = {}
+
+    def _get_translator(self) -> GoogleTranslator:
+        """Retorna instância reutilizável do tradutor para evitar overhead por chamada."""
+        if self._translator is None:
+            self._translator = GoogleTranslator(source='en', target='pt')
+        return self._translator
 
     def _load_vulnerability_types(self) -> List[Dict[str, object]]:
         """Carrega tipos de vulnerabilidade a partir de JSON com fallback seguro."""
@@ -392,8 +406,9 @@ class ReportGenerator:
             # Limitar tamanho e dividir em chunks se necessário
             max_chunk_size = 4500  # Deixar margem de segurança
             
+            translator = self._get_translator()
+
             if len(protected_text) <= max_chunk_size:
-                translator = GoogleTranslator(source='en', target='pt')
                 translated = translator.translate(protected_text)
                 translated = translated if translated else protected_text
                 final_text = self._restore_translation_terms(translated, protected_map)
@@ -406,8 +421,6 @@ class ReportGenerator:
             translated_parts = []
             current_chunk = ""
             
-            translator = GoogleTranslator(source='en', target='pt')
-            
             for para in paragraphs:
                 # Se o parágrafo sozinho é muito grande, dividir por sentenças
                 if len(para) > max_chunk_size:
@@ -417,20 +430,20 @@ class ReportGenerator:
                             current_chunk += sentence + '. '
                         else:
                             if current_chunk:
-                                translated_parts.append(translator.translate(current_chunk))
+                                translated_parts.append(translator.translate(current_chunk) or current_chunk)
                             current_chunk = sentence + '. '
                 else:
                     # Se adicionar este parágrafo exceder o limite, traduzir o chunk atual
                     if len(current_chunk) + len(para) > max_chunk_size:
                         if current_chunk:
-                            translated_parts.append(translator.translate(current_chunk))
+                            translated_parts.append(translator.translate(current_chunk) or current_chunk)
                         current_chunk = para + '\n\n'
                     else:
                         current_chunk += para + '\n\n'
             
             # Traduzir o último chunk
             if current_chunk:
-                translated_parts.append(translator.translate(current_chunk))
+                translated_parts.append(translator.translate(current_chunk) or current_chunk)
             
             joined_translation = ''.join(translated_parts)
             final_text = self._restore_translation_terms(joined_translation, protected_map)
@@ -448,7 +461,7 @@ class ReportGenerator:
         protected_text = text
 
         # Padrões maiores primeiro para evitar substituições parciais (Node.js antes de Node).
-        for pattern in sorted(self._translation_protected_patterns, key=len, reverse=True):
+        for pattern in self._sorted_translation_protected_patterns:
             protected_text = re.sub(
                 pattern,
                 lambda match: self._register_translation_placeholder(match.group(0), protected_map),
@@ -576,16 +589,30 @@ class ReportGenerator:
         dep_vulns = vulnerabilities_data.get(dep_name, [])
 
         if not dep_vulns:
-            for vuln_key, vuln_list in vulnerabilities_data.items():
-                if str(vuln_key).lower() == dep_name.lower():
-                    dep_vulns = vuln_list
-                    break
+            lookup = self._get_case_insensitive_vuln_lookup(vulnerabilities_data)
+            dep_vulns = lookup.get(dep_name.lower(), [])
 
         return [
             vuln
             for vuln in dep_vulns
             if self._is_vulnerability_applicable(dep, vuln)
         ]
+
+    def _get_case_insensitive_vuln_lookup(self, vulnerabilities_data: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
+        """Cria cache de lookup case-insensitive para evitar varreduras repetidas."""
+        data_id = id(vulnerabilities_data)
+        if self._cached_vuln_lookup_data_id == data_id:
+            return self._cached_vuln_lookup
+
+        lookup: Dict[str, List[Dict]] = {}
+        for vuln_key, vuln_list in vulnerabilities_data.items():
+            normalized_key = str(vuln_key).lower()
+            if normalized_key not in lookup:
+                lookup[normalized_key] = vuln_list
+
+        self._cached_vuln_lookup_data_id = data_id
+        self._cached_vuln_lookup = lookup
+        return lookup
 
     def _is_vulnerability_applicable(self, dep: Dict, vuln: Dict) -> bool:
         """Determina se uma vulnerabilidade é aplicável ao componente/versão analisado."""
