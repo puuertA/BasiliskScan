@@ -29,6 +29,41 @@ class ReportGenerator:
         "not available",
         "-",
     }
+
+    _ECOSYSTEM_ALIASES: Dict[str, str] = {
+        "node": "npm",
+        "node.js": "npm",
+        "nodejs": "npm",
+        "javascript": "npm",
+        "typescript": "npm",
+        "python": "pypi",
+        "pip": "pypi",
+        "pipenv": "pypi",
+        "poetry": "pypi",
+        "php": "composer",
+        "packagist": "composer",
+        "rubygems": "gem",
+        "ruby": "gem",
+        "golang": "go",
+        "go-module": "go",
+        "gomod": "go",
+        "go modules": "go",
+    }
+
+    _ECOSYSTEM_BADGE_LABELS: Dict[str, str] = {
+        "npm": "NPM",
+        "ionic": "IONIC",
+        "pypi": "PYTHON",
+        "composer": "PHP",
+        "maven": "MAVEN",
+        "gradle": "GRADLE",
+        "ant": "ANT",
+        "nuget": "NUGET",
+        "gem": "RUBY",
+        "cargo": "RUST",
+        "go": "GO",
+        "unknown": "UNKNOWN",
+    }
     
     def __init__(self, console: Console = None):
         """
@@ -794,6 +829,26 @@ class ReportGenerator:
 
         return declared_in
 
+    def _normalize_ecosystem_badge_token(self, ecosystem: object) -> str:
+        """Normaliza token de ecossistema para chave estável de badge."""
+        raw = str(ecosystem or "unknown").strip().lower()
+        if not raw:
+            return "unknown"
+
+        canonical = self._ECOSYSTEM_ALIASES.get(raw, raw)
+        return canonical
+
+    def _get_ecosystem_badge_info(self, ecosystem: object) -> Dict[str, str]:
+        """Retorna metadados (classe/label) da badge de ecossistema."""
+        canonical = self._normalize_ecosystem_badge_token(ecosystem)
+        badge_class = re.sub(r"[^a-z0-9_-]+", "-", canonical).strip("-") or "unknown"
+        label = self._ECOSYSTEM_BADGE_LABELS.get(canonical, canonical.upper())
+
+        return {
+            "class_name": badge_class,
+            "label": label,
+        }
+
     def _build_vulnerable_components(self, dependencies: List[Dict], vulnerabilities_data: Dict[str, List[Dict]]) -> List[Dict]:
         """Agrupa componentes vulneráveis removendo duplicações de origem equivalente."""
         severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "UNKNOWN": 0}
@@ -932,7 +987,7 @@ class ReportGenerator:
 
         grouped_dependencies.sort(
             key=lambda dep: (
-                str(dep.get("ecosystem", "unknown") or "unknown").lower(),
+                self._normalize_ecosystem_badge_token(dep.get("ecosystem", "unknown")),
                 str(dep.get("name", "") or "").lower(),
             )
         )
@@ -1746,12 +1801,12 @@ class ReportGenerator:
             status_badge = self._render_status_badges(status)
             relationship_badge = self._render_dependency_relationship_badge(dep)
 
-            ecosystem = dep.get('ecosystem', 'unknown')
+            ecosystem_badge = self._get_ecosystem_badge_info(dep.get('ecosystem', 'unknown'))
             html_content += f'''
                             <tr>
                                 <td><strong>{dep_name}</strong></td>
                                 <td>{version_html}</td>
-                                <td><span class="ecosystem-badge {ecosystem}">{ecosystem}</span></td>
+                                <td><span class="ecosystem-badge {ecosystem_badge["class_name"]}">{ecosystem_badge["label"]}</span></td>
                                 <td>{dep.get('declared_in', 'N/A')}</td>
                                 <td>{status_badge}<div class="status-badges">{relationship_badge}</div></td>
                             </tr>'''
@@ -1834,7 +1889,7 @@ class ReportGenerator:
         
         if vulnerable_components:
             for comp_idx, comp in enumerate(vulnerable_components):
-                ecosystem = comp.get('ecosystem', 'unknown')
+                ecosystem_badge = self._get_ecosystem_badge_info(comp.get('ecosystem', 'unknown'))
                 comp_name = comp.get('name', 'N/A')
                 comp_version = comp.get('version_spec', 'N/A')
                 vulns = comp.get('vulnerabilities', [])
@@ -1858,7 +1913,7 @@ class ReportGenerator:
                     <div class="vuln-card-header">
                         <div class="component-name">
                             <span>{comp_name}</span>
-                            <span class="ecosystem-badge {ecosystem}">{ecosystem}</span>
+                            <span class="ecosystem-badge {ecosystem_badge["class_name"]}">{ecosystem_badge["label"]}</span>
                         </div>
                         <button class="component-toggle" onclick="toggleComponent('{component_expand_id}')">
                             <span class="expand-arrow" id="arrow-{component_expand_id}">▶</span>
@@ -2418,7 +2473,7 @@ class ReportGenerator:
         grouped_dependencies = self._build_grouped_dependencies(dependencies)
         grouped_ecosystems: Dict[str, int] = {}
         for dependency in grouped_dependencies:
-            ecosystem = dependency.get("ecosystem", "unknown")
+            ecosystem = self._normalize_ecosystem_badge_token(dependency.get("ecosystem", "unknown"))
             grouped_ecosystems[ecosystem] = grouped_ecosystems.get(ecosystem, 0) + 1
 
         self.console.print("[bold green]✅ Varredura concluída com sucesso![/bold green]")
@@ -2432,7 +2487,9 @@ class ReportGenerator:
         
         for eco, count in grouped_ecosystems.items():
             emoji = ECOSYSTEM_EMOJIS.get(eco, "❓")
-            self.console.print(f"   • {emoji} [bold]{count}[/bold] dependência(s) do ecossistema [italic]{eco}[/italic]")
+            ecosystem_badge = self._get_ecosystem_badge_info(eco)
+            ecosystem_label = ecosystem_badge["label"]
+            self.console.print(f"   • {emoji} [bold]{count}[/bold] dependência(s) do ecossistema [italic]{ecosystem_label}[/italic]")
         
         # Exibir estatísticas de vulnerabilidades
         if vulnerabilities:

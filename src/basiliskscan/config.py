@@ -89,7 +89,13 @@ DEFAULT_OUTPUT_FILE = get_default_output_filename()
 ECOSYSTEM_EMOJIS = {
     "npm": "📦",
     "ionic": "⚡",
+    "pypi": "🐍",
+    "composer": "🐘",
     "maven": "☕",
     "gradle": "🐘",
-    "ant": "🐜"
+    "ant": "🐜",
+    "nuget": "🔷",
+    "gem": "💎",
+    "cargo": "🦀",
+    "go": "🐹",
 }

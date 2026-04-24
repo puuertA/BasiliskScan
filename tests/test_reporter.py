@@ -309,6 +309,18 @@ class TestReporter(unittest.TestCase):
         self.assertIn("Nenhuma vulnerabilidade conhecida", badges_html)
         self.assertIn("Existe uma versão mais recente ou corrigida", badges_html)
 
+    def test_get_ecosystem_badge_info_normalizes_aliases(self):
+        python_badge = self.reporter._get_ecosystem_badge_info("python")
+        php_badge = self.reporter._get_ecosystem_badge_info("php")
+        ionic_badge = self.reporter._get_ecosystem_badge_info("ionic")
+
+        self.assertEqual(python_badge["class_name"], "pypi")
+        self.assertEqual(python_badge["label"], "PYTHON")
+        self.assertEqual(php_badge["class_name"], "composer")
+        self.assertEqual(php_badge["label"], "PHP")
+        self.assertEqual(ionic_badge["class_name"], "ionic")
+        self.assertEqual(ionic_badge["label"], "IONIC")
+
     def test_build_cvss_tooltip_contains_explanation_and_ranges(self):
         tooltip = self.reporter._build_cvss_tooltip(
             {
@@ -357,6 +369,81 @@ class TestReporter(unittest.TestCase):
         self.assertIn('<div class="number">1</div>\n                        <div class="label">Componentes Desatualizados</div>', html)
         self.assertIn("Nenhuma vulnerabilidade conhecida", html)
         self.assertIn("Existe uma versão mais recente ou corrigida", html)
+
+    def test_generate_html_report_renders_normalized_ecosystem_badges(self):
+        dependencies = [
+            {
+                "name": "requests",
+                "ecosystem": "python",
+                "version_spec": "2.31.0",
+                "declared_in": "C:/repo/backend/requirements.txt",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+            {
+                "name": "laravel/framework",
+                "ecosystem": "php",
+                "version_spec": "11.0.0",
+                "declared_in": "C:/repo/backend/composer.json",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+        ]
+
+        report_data = self.reporter.generate_report_data(
+            target_path=pathlib.Path("C:/repo/backend"),
+            dependencies=dependencies,
+            ecosystems={"python": 1, "php": 1},
+            output_file="report.html",
+            vulnerabilities={},
+        )
+
+        html = self.reporter.generate_html_report(report_data)
+
+        self.assertIn('class="ecosystem-badge pypi">PYTHON</span>', html)
+        self.assertIn('class="ecosystem-badge composer">PHP</span>', html)
+
+    def test_display_scan_results_uses_normalized_ecosystem_labels(self):
+        console = Console(record=True)
+        reporter = ReportGenerator(console)
+        dependencies = [
+            {
+                "name": "requests",
+                "ecosystem": "python",
+                "version_spec": "2.31.0",
+                "declared_in": "C:/repo/backend/requirements.txt",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+            {
+                "name": "flask",
+                "ecosystem": "pypi",
+                "version_spec": "3.0.0",
+                "declared_in": "C:/repo/backend/requirements.txt",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+            {
+                "name": "laravel/framework",
+                "ecosystem": "php",
+                "version_spec": "11.0.0",
+                "declared_in": "C:/repo/backend/composer.json",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            },
+        ]
+
+        with patch("webbrowser.open", return_value=True):
+            reporter.display_scan_results(
+                dependencies=dependencies,
+                ecosystems={"python": 1, "pypi": 1, "php": 1},
+                output_file="report.html",
+                vulnerabilities={},
+            )
+
+        output = console.export_text()
+        self.assertIn("2 dependência(s) do ecossistema PYTHON", output)
+        self.assertIn("1 dependência(s) do ecossistema PHP", output)
 
     def test_generate_html_report_renders_cvss_tooltip_and_path_class(self):
         dependencies = [

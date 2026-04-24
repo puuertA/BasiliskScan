@@ -426,6 +426,11 @@
             background: linear-gradient(135deg, #cb3837, #a02d2d);
             color: white;
         }
+
+        .ecosystem-badge.ionic {
+            background: linear-gradient(135deg, #4a90d9, #2d5f8a);
+            color: white;
+        }
         
         .ecosystem-badge.pypi {
             background: linear-gradient(135deg, #3776ab, #2d5f8a);
@@ -439,6 +444,44 @@
 
         .ecosystem-badge.ant {
             background: linear-gradient(135deg, #8e44ad, #6c3483);
+            color: white;
+        }
+
+        .ecosystem-badge.gradle {
+            background: linear-gradient(135deg, #0f9d58, #0b7a44);
+            color: white;
+        }
+
+        .ecosystem-badge.composer,
+        .ecosystem-badge.php {
+            background: linear-gradient(135deg, #7e57c2, #5e35b1);
+            color: white;
+        }
+
+        .ecosystem-badge.nuget {
+            background: linear-gradient(135deg, #512bd4, #3f1fa8);
+            color: white;
+        }
+
+        .ecosystem-badge.gem,
+        .ecosystem-badge.ruby {
+            background: linear-gradient(135deg, #cc342d, #9b251f);
+            color: white;
+        }
+
+        .ecosystem-badge.cargo,
+        .ecosystem-badge.rust {
+            background: linear-gradient(135deg, #b7410e, #8f320a);
+            color: white;
+        }
+
+        .ecosystem-badge.go {
+            background: linear-gradient(135deg, #00acd7, #0089ab);
+            color: white;
+        }
+
+        .ecosystem-badge.unknown {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
             color: white;
         }
 
