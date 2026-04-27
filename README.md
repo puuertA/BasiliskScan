@@ -17,7 +17,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.12-red.svg)](https://github.com/PuertA/basiliskscan)
+[![Version](https://img.shields.io/badge/version-1.5.15-red.svg)](https://github.com/PuertA/basiliskscan)
 
 </div>
 
@@ -67,6 +67,17 @@ git clone https://github.com/PuertA/basiliskscan.git
 cd basiliskscan
 pip install -e .
 ```
+
+### Windows Automatic Setup
+
+If you want the installer to set up `bscan` automatically in PowerShell, run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+./scripts/install_basiliskscan.ps1 -Editable
+```
+
+This installs the project in editable mode, updates the user PATH, and creates the `bscan` launcher.
 
 ## Quick Usage
 

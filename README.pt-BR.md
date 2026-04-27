@@ -10,6 +10,17 @@ A documentacao principal para o PyPI esta em ingles no arquivo `README.md`.
 pip install basiliskscan
 ```
 
+### Instalacao automatica no Windows
+
+Para instalar e deixar o `bscan` pronto no PowerShell, rode:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+./scripts/install_basiliskscan.ps1 -Editable
+```
+
+Isso instala o projeto em modo editavel, ajusta o PATH do usuario e cria o launcher `bscan`.
+
 ## Uso rapido
 
 ```bash
