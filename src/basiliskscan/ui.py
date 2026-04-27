@@ -5,6 +5,7 @@ import click
 import re
 import os
 import sys
+import pathlib
 from rich.console import Console
 
 from .help_text import LOGO
@@ -45,6 +46,27 @@ def _safe_console_print(console: Console, message: str) -> None:
         console.print(message)
     except UnicodeEncodeError:
         click.echo(_sanitize_for_legacy_console(message))
+
+
+def normalize_cli_directory_input(path_value: str | os.PathLike[str] | None, default: str = ".") -> pathlib.Path:
+    """Normaliza caminhos de diretório informados via CLI."""
+    raw_value = str(path_value).strip() if path_value is not None else default
+    if not raw_value:
+        raw_value = default
+
+    if len(raw_value) >= 2 and raw_value[0] == raw_value[-1] and raw_value[0] in {'"', "'"}:
+        normalized = raw_value[1:-1]
+    else:
+        normalized = raw_value
+        if normalized.endswith('"') and not normalized.startswith('"'):
+            normalized = normalized[:-1]
+        if normalized.endswith("'") and not normalized.startswith("'"):
+            normalized = normalized[:-1]
+
+    if not normalized:
+        normalized = default
+
+    return pathlib.Path(normalized).expanduser().resolve()
 
 
 class BasiliskCommand(click.Command):

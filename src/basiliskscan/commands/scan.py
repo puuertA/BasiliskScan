@@ -1,7 +1,6 @@
 # src/basiliskscan/commands/scan.py
 """Comando de varredura de dependências."""
 
-import pathlib
 import time
 from typing import Optional
 import click
@@ -17,7 +16,13 @@ from ..help_text import (
     INCLUDE_TRANSITIVE_OPTION_HELP,
     OFFLINE_OPTION_HELP,
 )
-from ..ui import BasiliskCommand, UIHelper, validate_target_path, handle_file_save_error
+from ..ui import (
+    BasiliskCommand,
+    UIHelper,
+    validate_target_path,
+    handle_file_save_error,
+    normalize_cli_directory_input,
+)
 from ..env import load_dotenv
 from ..scanner import DependencyScanner
 from ..reporter import ReportGenerator
@@ -83,7 +88,7 @@ def _build_unique_components_for_vuln_scan(dependencies: list[dict]) -> list[dic
     "--project",
     "-p",
     "project",
-    type=click.Path(file_okay=False, exists=True, path_type=pathlib.Path),
+    type=str,
     default=".",
     show_default=True,
     help=PROJECT_OPTION_HELP,
@@ -153,10 +158,10 @@ def scan_command(
     
     # Determina o diretório alvo baseado nos parâmetros fornecidos
     if url:
-        target_path = pathlib.Path(url).resolve()
+        target_path = normalize_cli_directory_input(url)
         url_mode = True
     else:
-        target_path = pathlib.Path(project).resolve()
+        target_path = normalize_cli_directory_input(project)
         url_mode = False
     
     # Valida o diretório alvo

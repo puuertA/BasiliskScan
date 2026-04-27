@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, List
 
 import click
@@ -12,7 +11,7 @@ from ..env import load_dotenv
 from ..ingest.offline_db import OfflineVulnerabilityDB
 from ..ingest.offline_sync import OfflineSyncService
 from ..scanner import DependencyScanner
-from ..ui import BasiliskCommand, UIHelper
+from ..ui import BasiliskCommand, UIHelper, normalize_cli_directory_input, validate_target_path
 
 
 def _build_unique_components(dependencies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -75,7 +74,7 @@ def _build_unique_components(dependencies: List[Dict[str, Any]]) -> List[Dict[st
 @click.option(
     "--project",
     "project_path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    type=str,
     default=None,
     help="Diretório opcional para descobrir componentes do projeto e sincronizar no banco.",
 )
@@ -84,19 +83,24 @@ def offline_db_command(
     sync: bool,
     force: bool,
     clear: bool,
-    project_path: Path | None,
+    project_path: str | None,
 ):
     """Executa operações no banco offline consolidado de vulnerabilidades."""
     load_dotenv()
     ui = UIHelper()
     db = OfflineVulnerabilityDB()
     service = OfflineSyncService(db=db)
+    normalized_project_path = None
+
+    if project_path is not None:
+        normalized_project_path = normalize_cli_directory_input(project_path)
+        validate_target_path(normalized_project_path)
 
     try:
-        if clear and (status or sync or force or project_path is not None):
+        if clear and (status or sync or force or normalized_project_path is not None):
             raise click.ClickException("Use --clear sozinho, sem combinar com outras opções.")
 
-        if force and not sync and project_path is None:
+        if force and not sync and normalized_project_path is None:
             sync = True
 
         if clear:
@@ -121,18 +125,18 @@ def offline_db_command(
                 src = ", ".join(f"{k}: {v}" for k, v in sorted(stats["by_source"].items()))
                 ui.console.print(f"   • Por fonte: {src}")
 
-            if not sync and project_path is None:
+            if not sync and normalized_project_path is None:
                 return
 
         components: List[Dict[str, Any]] = []
-        if project_path is not None:
-            ui.console.print(f"[cyan]🔎 Descobrindo dependências em {project_path}...[/cyan]")
+        if normalized_project_path is not None:
+            ui.console.print(f"[cyan]🔎 Descobrindo dependências em {normalized_project_path}...[/cyan]")
             scanner = DependencyScanner(ui.console)
-            dependencies = scanner.collect_dependencies(project_path)
+            dependencies = scanner.collect_dependencies(normalized_project_path)
             components = _build_unique_components(dependencies)
             ui.console.print(f"[dim]   Componentes únicos para sincronizar: {len(components)}[/dim]")
 
-        if sync or project_path is not None:
+        if sync or normalized_project_path is not None:
             if components:
                 components_to_sync = components
             elif force:
