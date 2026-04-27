@@ -55,6 +55,7 @@ src/basiliskscan/parsers/purl.py
 tests/test_aggregator_sources.py
 tests/test_cache.py
 tests/test_cli_help.py
+tests/test_cli_path_normalization.py
 tests/test_credential_manager.py
 tests/test_env_loader.py
 tests/test_ingest.py
