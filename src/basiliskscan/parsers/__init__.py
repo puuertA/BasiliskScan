@@ -6,12 +6,14 @@ from typing import Dict, List
 from .base import BaseParser
 from .nodejs import NodeJSParser
 from .java import JavaParser
+from .php import PHPParser
 
 
 # Instâncias dos parsers
 _PARSERS = [
     NodeJSParser(),
-    JavaParser()
+    JavaParser(),
+    PHPParser(),
 ]
 
 # Mapeia arquivos para parsers
@@ -60,6 +62,7 @@ __all__ = [
     "BaseParser",
     "NodeJSParser",
     "JavaParser",
+    "PHPParser",
     "get_parser_for_file",
     "get_all_supported_files"
 ]

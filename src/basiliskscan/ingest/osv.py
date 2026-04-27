@@ -23,6 +23,7 @@ class OSVClient(VulnerabilitySource):
         "cargo": "crates.io",
         "rubygems": "RubyGems",
         "packagist": "Packagist",
+        "composer": "Packagist",
         "nuget": "NuGet",
         "hex": "Hex",
         "pub": "Pub"

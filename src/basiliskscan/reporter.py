@@ -663,7 +663,7 @@ class ReportGenerator:
             return True
 
         dep_name = str(dep.get("name", "") or "").strip().lower()
-        dep_ecosystem = str(dep.get("ecosystem", "") or "").strip().lower()
+        dep_ecosystem = self._normalize_ecosystem_badge_token(dep.get("ecosystem"))
 
         has_package_scoped_entries = False
         matched_package_entries = False
@@ -673,7 +673,7 @@ class ReportGenerator:
                 continue
 
             affected_name = str(affected.get("name", "") or "").strip().lower()
-            affected_ecosystem = str(affected.get("ecosystem", "") or "").strip().lower()
+            affected_ecosystem = self._normalize_ecosystem_badge_token(affected.get("ecosystem"))
 
             is_package_scoped = bool(affected_name or affected_ecosystem)
             if is_package_scoped:
@@ -1245,16 +1245,17 @@ class ReportGenerator:
 
         vulnerable_components = self._build_vulnerable_components(dependencies, vulnerabilities_data)
         
-        # Calcular estatísticas de vulnerabilidades
-        total_vulnerabilities = sum(len(vulns) for vulns in vulnerabilities_data.values())
+        # Calcular estatísticas de vulnerabilidades (apenas aplicáveis)
+        total_vulnerabilities = 0
         critical_count = 0
         high_count = 0
         medium_count = 0
         low_count = 0
         unknown_count = 0
-        
-        for vulns in vulnerabilities_data.values():
-            for vuln in vulns:
+
+        for component in vulnerable_components:
+            for vuln in component.get("vulnerabilities", []):
+                total_vulnerabilities += 1
                 severity = vuln.get('severity', 'UNKNOWN')
                 if severity == 'CRITICAL':
                     critical_count += 1

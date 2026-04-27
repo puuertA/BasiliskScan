@@ -66,6 +66,7 @@ IGNORED_DIRS: Set[str] = {
     ".coverage",
     "htmlcov",
     ".env",
+    "vendor",
     "target",  # Maven
     ".gradle"  # Gradle
 }
@@ -75,6 +76,8 @@ SUPPORTED_FILES: Set[str] = {
     "package.json",
     "package-lock.json",
     "npm-shrinkwrap.json",
+    "composer.json",
+    "composer.lock",
     "pom.xml",
     "build.xml",
     "build.gradle",

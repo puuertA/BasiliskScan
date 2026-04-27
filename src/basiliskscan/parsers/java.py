@@ -38,6 +38,10 @@ class JavaParser(BaseParser):
     )
 
     ANT_PROPERTY_TOKEN_RE = re.compile(r"\$\{([^}]+)\}")
+    ANT_JAR_PATH_RE = re.compile(
+        r"(?:location|file|path|classpath|classpathref|destfile)\s*=\s*[\"'](?P<value>[^\"']+?\.jar)[\"']",
+        re.IGNORECASE,
+    )
     
     def get_supported_files(self) -> List[str]:
         """Retorna lista de arquivos suportados."""
@@ -301,50 +305,114 @@ class JavaParser(BaseParser):
     def _parse_ant(self, path: pathlib.Path) -> List[Dict]:
         """Extrai dependências declaradas em projetos Ant/NetBeans."""
         properties_path = path.parent / "nbproject" / "project.properties"
-        if not properties_path.exists():
-            return []
-
-        properties = self._read_properties_file(properties_path)
         deps = []
         seen_keys = set()
 
-        for key, value in properties.items():
-            if not key.startswith("file.reference."):
-                continue
+        if properties_path.exists():
+            properties = self._read_properties_file(properties_path)
 
-            normalized_value = value.replace("\\", "/")
-            if not normalized_value.lower().endswith(".jar"):
-                continue
-
-            dependency = self._build_ant_dependency(path, key, value)
-            if dependency is not None:
-                deps.append(dependency)
-                seen_keys.add((dependency["name"], dependency.get("version_spec"), dependency["dependency_type"]))
-
-        classpath_properties = {
-            key: value
-            for key, value in properties.items()
-            if key.endswith(".classpath")
-        }
-
-        for classpath_property, classpath_value in classpath_properties.items():
-            for token in self.ANT_PROPERTY_TOKEN_RE.findall(classpath_value):
-                dependency = self._build_ant_classpath_dependency(path, token, classpath_property)
-                if dependency is None:
+            for key, value in properties.items():
+                if not key.startswith("file.reference."):
                     continue
 
-                unique_key = (
-                    dependency["name"],
-                    dependency.get("version_spec"),
-                    dependency["dependency_type"],
-                )
-                if unique_key in seen_keys:
+                normalized_value = value.replace("\\", "/")
+                if not normalized_value.lower().endswith(".jar"):
                     continue
 
-                seen_keys.add(unique_key)
-                deps.append(dependency)
+                dependency = self._build_ant_dependency(path, key, value)
+                if dependency is not None:
+                    deps.append(dependency)
+                    seen_keys.add((dependency["name"], dependency.get("version_spec"), dependency["dependency_type"]))
+
+            classpath_properties = {
+                key: value
+                for key, value in properties.items()
+                if key.endswith(".classpath")
+            }
+
+            for classpath_property, classpath_value in classpath_properties.items():
+                for token in self.ANT_PROPERTY_TOKEN_RE.findall(classpath_value):
+                    dependency = self._build_ant_classpath_dependency(path, token, classpath_property)
+                    if dependency is None:
+                        continue
+
+                    unique_key = (
+                        dependency["name"],
+                        dependency.get("version_spec"),
+                        dependency["dependency_type"],
+                    )
+                    if unique_key in seen_keys:
+                        continue
+
+                    seen_keys.add(unique_key)
+                    deps.append(dependency)
+
+        if not deps:
+            deps.extend(self._discover_ant_local_jar_dependencies(path, seen_keys))
 
         return deps
+
+    def _discover_ant_local_jar_dependencies(self, build_file: pathlib.Path, seen_keys: set[tuple[str, Optional[str], str]]) -> List[Dict]:
+        """Tenta descobrir JARs locais em projetos Ant sem metadata NetBeans."""
+        project_root = build_file.parent
+        discovered: List[Dict] = []
+
+        for jar_path in self._find_ant_jar_candidates(build_file, project_root):
+            dependency = self._build_ant_dependency(build_file, f"file.reference.{jar_path.stem}", str(jar_path))
+            if dependency is None:
+                continue
+
+            unique_key = (
+                dependency["name"],
+                dependency.get("version_spec"),
+                dependency["dependency_type"],
+            )
+            if unique_key in seen_keys:
+                continue
+
+            seen_keys.add(unique_key)
+            discovered.append(dependency)
+
+        return discovered
+
+    def _find_ant_jar_candidates(self, build_file: pathlib.Path, project_root: pathlib.Path) -> List[pathlib.Path]:
+        """Encontra JARs prováveis de dependências em um projeto Ant."""
+        candidates: List[pathlib.Path] = []
+        seen: set[pathlib.Path] = set()
+
+        try:
+            build_text = build_file.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            build_text = ""
+
+        for match in self.ANT_JAR_PATH_RE.finditer(build_text):
+            raw_value = match.group("value").replace("\\", "/").strip()
+            if not raw_value:
+                continue
+
+            jar_path = (project_root / raw_value).resolve()
+            if jar_path.exists() and jar_path.suffix.lower() == ".jar" and jar_path not in seen:
+                seen.add(jar_path)
+                candidates.append(jar_path)
+
+        library_dir_names = {"lib", "libs", "library", "libraries", "external", "externals", "vendor", "vendors", "thirdparty", "dependencies"}
+
+        for directory in project_root.rglob("*"):
+            if not directory.is_dir():
+                continue
+
+            if directory.name.lower() not in library_dir_names:
+                continue
+
+            for jar_path in directory.rglob("*.jar"):
+                if jar_path in seen:
+                    continue
+                if any(part.lower() in {"build", "target", "out", "dist"} for part in jar_path.parts):
+                    continue
+                seen.add(jar_path)
+                candidates.append(jar_path)
+
+        return candidates
 
     def _read_properties_file(self, path: pathlib.Path) -> Dict[str, str]:
         """Lê arquivo `.properties` preservando continuações de linha."""

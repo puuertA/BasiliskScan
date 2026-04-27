@@ -190,6 +190,26 @@ javac.classpath=${build.classes.dir}:${javac.classpath}:${j2ee.server.home}:${li
         self.assertNotIn("javac.classpath", names)
         self.assertNotIn("j2ee.server.home", names)
 
+    def test_parse_ant_pure_project_discovers_local_lib_jars(self):
+        build_file = self.temp_dir / "build.xml"
+        build_file.write_text(
+            """<project name=\"demo\">\n  <target name=\"compile\">\n    <path id=\"project.classpath\">\n      <fileset dir=\"lib\" includes=\"*.jar\"/>\n    </path>\n  </target>\n</project>""",
+            encoding="utf-8",
+        )
+
+        lib_dir = self.temp_dir / "lib"
+        lib_dir.mkdir()
+        (lib_dir / "commons-lang3-3.12.0.jar").write_text("", encoding="utf-8")
+        (lib_dir / "log4j-api-2.17.1.jar").write_text("", encoding="utf-8")
+
+        dependencies = self.parser.parse(build_file)
+        names = {dep["name"] for dep in dependencies}
+
+        self.assertEqual(len(dependencies), 2)
+        self.assertIn("commons-lang3", names)
+        self.assertIn("log4j-api", names)
+        self.assertTrue(all(dep["ecosystem"] == "ant" for dep in dependencies))
+
     def test_parse_gradle_lockfile_as_transitive_dependencies(self):
         lockfile = self.temp_dir / "gradle.lockfile"
         lockfile.write_text(

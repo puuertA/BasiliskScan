@@ -43,6 +43,8 @@ def build_purl(ecosystem: str, name: str, version_spec: Optional[str]) -> Option
             return None
         group_id, artifact_id = name.split(":", 1)
         purl = f"pkg:maven/{quote(group_id, safe='')}/{quote(artifact_id, safe='')}"
+    elif ecosystem_normalized == "composer":
+        purl = f"pkg:composer/{quote(name, safe='/')}"
     elif ecosystem_normalized == "ant":
         purl = f"pkg:generic/{quote(name, safe='')}"
     else:

@@ -13,7 +13,7 @@ APP_DESCRIPTION = """\
 🔍 BasiliskScan - Ferramenta Avançada de Análise de Dependências
 
 Ferramenta de linha de comando para mapear dependências, consultar vulnerabilidades
-e gerar relatórios HTML detalhados para projetos Node.js/Ionic e Java.
+e gerar relatórios HTML detalhados para projetos Node.js/Ionic, Java e PHP.
 
 RECURSOS PRINCIPAIS:
 
@@ -32,6 +32,8 @@ ARQUIVOS SUPORTADOS:
   • Node.js/Ionic: package.json, package-lock.json, npm-shrinkwrap.json
 
   • Java: pom.xml, build.xml, build.gradle, build.gradle.kts, gradle.lockfile
+
+  • PHP (Composer): composer.json, composer.lock
 
 CONFIGURAÇÃO OPCIONAL:
 
