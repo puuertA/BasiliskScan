@@ -275,6 +275,27 @@ def scan_command(
                             progress_callback=update_vulnerability_progress,
                         )
 
+                    # Auto-sincronizar componentes encontrados para o banco offline
+                    ui.console.print("[cyan]💾 Sincronizando componentes para banco offline...[/cyan]")
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[bold blue]{task.description}"),
+                        TimeElapsedColumn(),
+                        console=ui.console,
+                    ) as progress:
+                        task = progress.add_task("💾 Gravando no banco offline...", total=None)
+                        sync_summary = offline_sync_service.sync_components(
+                            components=components_to_check,
+                            force=False,
+                            progress_callback=lambda name: progress.update(task, description=f"💾 Sincronizando {name}..."),
+                        )
+                    if sync_summary.get("synced", 0) > 0:
+                        ui.console.print(
+                            f"[dim]↪ {sync_summary['synced']}/{sync_summary['processed']} componente(s) "
+                            "sincronizado(s) para banco offline local[/dim]"
+                        )
+                    
+                    # Também ingere os resultados da busca atual
                     offline_sync_service.ingest_scan_results(
                         components=components_to_check,
                         vulnerabilities_by_name=vulnerabilities,
