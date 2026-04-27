@@ -20,6 +20,10 @@ class OfflineVulnerabilityDB:
     LEGACY_DB_DIR = Path(__file__).resolve().parents[3] / "resources" / "offline"
     PACKAGED_DB_PATH = Path("data") / "offline" / "offline_vulnerabilities.db"
     DEFAULT_DB_FILE = "offline_vulnerabilities.db"
+    SEED_FORCE_ENV = "BASILISKSCAN_SEED_FORCE"
+    SEED_REFRESH_ENV = "BASILISKSCAN_SEED_REFRESH"
+    _SEED_REFRESH_RATIO = 1.10
+    _SEED_REFRESH_MIN_DIFF = 50
 
     @classmethod
     def _resolve_default_db_dir(cls) -> Path:
@@ -43,9 +47,6 @@ class OfflineVulnerabilityDB:
         return None
 
     def _seed_database_if_missing(self) -> None:
-        if self.db_path.exists():
-            return
-
         if self.db_path.name != self.DEFAULT_DB_FILE:
             return
 
@@ -54,10 +55,82 @@ class OfflineVulnerabilityDB:
             self.LEGACY_DB_DIR / self.DEFAULT_DB_FILE,
         ]
 
-        for seed_path in seed_candidates:
-            if seed_path and seed_path.exists():
-                shutil.copy2(seed_path, self.db_path)
-                return
+        seed_path = next((path for path in seed_candidates if path and path.exists()), None)
+        if not seed_path:
+            return
+
+        if not self.db_path.exists():
+            shutil.copy2(seed_path, self.db_path)
+            return
+
+        if self._should_refresh_seed(self.db_path, seed_path):
+            backup_path = self.db_path.with_suffix(f"{self.db_path.suffix}.bak")
+            try:
+                shutil.copy2(self.db_path, backup_path)
+            except Exception:
+                pass
+            shutil.copy2(seed_path, self.db_path)
+
+    def _should_refresh_seed(self, local_path: Path, seed_path: Path) -> bool:
+        if self._is_seed_force_enabled():
+            return True
+
+        if not self._is_seed_refresh_enabled():
+            return False
+
+        local_stats = self._read_seed_stats(local_path)
+        seed_stats = self._read_seed_stats(seed_path)
+
+        if not seed_stats:
+            return False
+
+        if local_stats:
+            local_components = local_stats.get("total_components", 0)
+            seed_components = seed_stats.get("total_components", 0)
+            if seed_components <= local_components:
+                return False
+
+            if local_stats.get("has_user_sync"):
+                return False
+
+            ratio = seed_components / max(local_components, 1)
+            if ratio < self._SEED_REFRESH_RATIO and (seed_components - local_components) < self._SEED_REFRESH_MIN_DIFF:
+                return False
+
+        return True
+
+    def _is_seed_force_enabled(self) -> bool:
+        value = os.getenv(self.SEED_FORCE_ENV, "").strip().lower()
+        return value in {"1", "true", "yes", "on"}
+
+    def _is_seed_refresh_enabled(self) -> bool:
+        value = os.getenv(self.SEED_REFRESH_ENV, "").strip().lower()
+        return value in {"1", "true", "yes", "on"}
+
+    def _read_seed_stats(self, db_path: Path) -> Optional[Dict[str, Any]]:
+        try:
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT COUNT(*) AS total FROM components")
+            total_components = int(cursor.fetchone()["total"])
+
+            cursor.execute("SELECT COUNT(*) AS total FROM vulnerabilities")
+            total_vulnerabilities = int(cursor.fetchone()["total"])
+
+            cursor.execute("SELECT value FROM sync_metadata WHERE key = 'last_full_sync_at'")
+            last_full_sync = cursor.fetchone()
+            has_user_sync = bool(last_full_sync and last_full_sync["value"])
+
+            conn.close()
+            return {
+                "total_components": total_components,
+                "total_vulnerabilities": total_vulnerabilities,
+                "has_user_sync": has_user_sync,
+            }
+        except Exception:
+            return None
 
     def __init__(
         self,
