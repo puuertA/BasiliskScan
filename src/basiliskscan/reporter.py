@@ -325,6 +325,196 @@ class ReportGenerator:
 
         return "Security Issue", "Problema de Segurança: vulnerabilidade de segurança geral"
 
+    @staticmethod
+    def _truncate_text(text: str, limit: int = 220) -> str:
+        """Trunca textos longos mantendo leitura natural."""
+        normalized = " ".join(str(text or "").split())
+        if len(normalized) <= limit:
+            return normalized
+        truncated = normalized[: max(limit - 1, 0)].rstrip()
+        return f"{truncated}…" if truncated else normalized[:limit]
+
+    def _get_dependency_relationship_label(self, component: Dict) -> str:
+        """Retorna rótulo amigável para relacionamento da dependência."""
+        relationship = str(component.get("relationship") or component.get("dependency_type") or "").strip().lower()
+        if not relationship:
+            relationship = "transitive" if component.get("is_transitive") is True else "direct"
+
+        labels = {
+            "direct": "Direta",
+            "transitive": "Transitiva",
+            "mixed": "Direta + transitiva",
+        }
+        return labels.get(relationship, "Indefinida")
+
+    def _get_ecosystem_update_hints(self, ecosystem: object, component_name: str) -> List[str]:
+        """Sugestões de atualização específicas por ecossistema."""
+        canonical = self._normalize_ecosystem_badge_token(ecosystem)
+        hints_by_ecosystem = {
+            "npm": [
+                f"Atualize {component_name} no package.json e regenere o lockfile (npm/yarn/pnpm).",
+            ],
+            "ionic": [
+                f"Atualize {component_name} no package.json e regenere o lockfile (npm/yarn/pnpm).",
+            ],
+            "pypi": [
+                f"Atualize {component_name} em requirements.txt/pyproject.toml e execute pip/poetry para atualizar.",
+            ],
+            "composer": [
+                f"Atualize {component_name} no composer.json e rode composer update para a versão segura.",
+            ],
+            "maven": [
+                f"Atualize a versão de {component_name} no pom.xml e valide com mvn dependency:tree.",
+            ],
+            "gradle": [
+                f"Atualize {component_name} no build.gradle(.kts) e use --refresh-dependencies.",
+            ],
+            "nuget": [
+                f"Atualize {component_name} no .csproj/Directory.Packages.props e execute dotnet restore.",
+            ],
+            "gem": [
+                f"Atualize {component_name} no Gemfile e rode bundle update.",
+            ],
+            "cargo": [
+                f"Atualize {component_name} no Cargo.toml e rode cargo update -p {component_name}.",
+            ],
+            "go": [
+                f"Atualize {component_name} no go.mod e rode go get -u {component_name}.",
+            ],
+        }
+
+        return hints_by_ecosystem.get(
+            canonical,
+            ["Atualize o componente no arquivo de dependências do ecossistema e regenere o lockfile."],
+        )
+
+    def _get_vuln_mitigation_hints(self, vuln_type: str) -> List[str]:
+        """Mitigações complementares quando atualização imediata não é possível."""
+        hints_by_type = {
+            "XSS": [
+                "Escape e sanitize saídas HTML quando renderizar conteúdo dinâmico.",
+                "Aplique Content Security Policy (CSP) para reduzir injeções.",
+            ],
+            "RCE": [
+                "Execute serviços com privilégios mínimos e isole em containers/sandboxes.",
+                "Desabilite funcionalidades expostas quando não forem necessárias.",
+            ],
+            "DoS": [
+                "Implemente rate limiting, timeouts e limites de payload.",
+                "Monitore consumo de CPU/memória e ajuste quotas.",
+            ],
+            "SQL Injection": [
+                "Use consultas parametrizadas e evite concatenar SQL manualmente.",
+                "Valide entradas e utilize ORMs com escaping correto.",
+            ],
+            "CSRF": [
+                "Adote tokens anti-CSRF e verifique origem das requisições.",
+                "Ative SameSite e verificação de métodos sensíveis.",
+            ],
+            "Path Traversal": [
+                "Normalize e valide caminhos com allowlist de diretórios.",
+                "Evite concatenar paths com entrada do usuário sem validação.",
+            ],
+            "Prototype Pollution": [
+                "Evite merge profundo de objetos não confiáveis.",
+                "Valide chaves de entrada e utilize utilitários seguros.",
+            ],
+            "Command Injection": [
+                "Evite execução de shell com entrada do usuário; use APIs seguras.",
+                "Valide e sanitize parâmetros quando execução for inevitável.",
+            ],
+            "Information Disclosure": [
+                "Remova logs sensíveis e mensagens de erro detalhadas em produção.",
+                "Restrinja acesso a arquivos e endpoints internos.",
+            ],
+            "Auth Bypass": [
+                "Reforce verificações de autenticação/autorização em rotas críticas.",
+                "Revise regras de sessão, MFA e expiração de tokens.",
+            ],
+            "Security Issue": [
+                "Siga as instruções específicas do advisory e teste regressões após o patch.",
+            ],
+        }
+
+        return hints_by_type.get(vuln_type, hints_by_type["Security Issue"])
+
+    def _build_component_recommendation_card(self, component: Dict) -> str:
+        """Monta HTML com recomendações detalhadas para um componente vulnerável."""
+        comp_name = str(component.get("name", "N/A") or "N/A")
+        ecosystem = component.get("ecosystem", "unknown")
+        ecosystem_label = self._get_ecosystem_badge_info(ecosystem).get("label", "UNKNOWN")
+        relationship_label = self._get_dependency_relationship_label(component)
+        declared_in = str(component.get("declared_in", "N/A") or "N/A")
+        declared_in_html = html.escape(declared_in).replace("&lt;br&gt;", "<br>")
+        current_version = str(component.get("version_spec") or component.get("version") or "N/A")
+        vulns = component.get("vulnerabilities", []) or []
+        recommended_version = self._get_recommended_version(component, vulns) or "Consulte o advisory"
+
+        max_severity = vulns[0].get("severity", "UNKNOWN") if vulns else "UNKNOWN"
+        max_score = vulns[0].get("score", "N/A") if vulns else "N/A"
+        total_vulns = len(vulns)
+
+        top_vulns = vulns[:2]
+        vuln_items = []
+        mitigation_types = []
+
+        for vuln in top_vulns:
+            vuln_id = html.escape(str(vuln.get("id", "N/A") or "N/A"))
+            severity = str(vuln.get("severity", "UNKNOWN") or "UNKNOWN")
+            score = vuln.get("score", "N/A")
+            description = vuln.get("description") or vuln.get("summary") or ""
+            vuln_type, _ = self._get_vuln_type(description)
+            if vuln_type not in mitigation_types:
+                mitigation_types.append(vuln_type)
+            description_short = self._truncate_text(description, 200)
+
+            details = f"{severity} · {vuln_type} · CVSS {score}"
+            if description_short:
+                details = f"{details}<br><span class=\"recommendation-muted\">{html.escape(description_short)}</span>"
+            vuln_items.append(f"<li><strong>{vuln_id}</strong><br>{details}</li>")
+
+        if total_vulns > len(top_vulns):
+            vuln_items.append(f"<li><em>+{total_vulns - len(top_vulns)} vulnerabilidade(s) adicional(is) neste componente.</em></li>")
+
+        actions = []
+        actions.append(f"Atualize {comp_name} para {recommended_version}.")
+        actions.extend(self._get_ecosystem_update_hints(ecosystem, comp_name))
+
+        relationship = str(component.get("relationship") or component.get("dependency_type") or "").strip().lower()
+        if not relationship:
+            relationship = "transitive" if component.get("is_transitive") is True else "direct"
+        if relationship == "transitive":
+            actions.append("Como dependência transitiva, atualize a dependência direta que a inclui ou use overrides/resolutions para forçar a versão segura.")
+        actions.append("Reexecute testes automatizados e revise mudanças no changelog após a atualização.")
+
+        actions_html = "".join(f"<li>{html.escape(action)}</li>" for action in actions)
+
+        mitigation_hints = []
+        for vuln_type in mitigation_types:
+            mitigation_hints.extend(self._get_vuln_mitigation_hints(vuln_type))
+        mitigation_html = "".join(f"<li>{html.escape(hint)}</li>" for hint in mitigation_hints)
+
+        return f'''
+                <div class="recommendation-card">
+                    <div class="title"><i class="bi bi-lightbulb"></i> {html.escape(comp_name)} · {html.escape(ecosystem_label)} · Severidade {html.escape(max_severity)} (CVSS {html.escape(str(max_score))})</div>
+                    <div class="content">
+                        <p><strong>Onde:</strong> {declared_in_html}</p>
+                        <p><strong>Versão atual:</strong> {html.escape(current_version)} | <strong>Relacionamento:</strong> {html.escape(relationship_label)}</p>
+                        <p><strong>Vulnerabilidades principais:</strong></p>
+                        <ul class="recommendation-list">
+                            {"".join(vuln_items)}
+                        </ul>
+                        <p><strong>Ações recomendadas:</strong></p>
+                        <ul class="recommendation-list">
+                            {actions_html}
+                        </ul>
+                        <p><strong>Mitigações complementares (se não for possível atualizar agora):</strong></p>
+                        <ul class="recommendation-list">
+                            {mitigation_html}
+                        </ul>
+                    </div>
+                </div>'''
+
     def _build_vuln_type_legend(self, vulnerable_components: List[Dict]) -> Dict[str, Dict[str, object]]:
         """Monta legenda de tipos de vulnerabilidade para exibição com tooltip na aba."""
         legend: Dict[str, Dict[str, object]] = {}
@@ -2050,70 +2240,35 @@ class ReportGenerator:
                 <h2 class="section-title"><i class="bi bi-lightbulb"></i> Recomendações de Mitigação</h2>'''
         
         if vulnerable_components:
-            # Agrupar recomendações por severidade
-            critical_vulns = [c for c in vulnerable_components if c.get('max_severity_score', 0) == 4]
-            high_vulns = [c for c in vulnerable_components if c.get('max_severity_score', 0) == 3]
-            
-            if critical_vulns:
-                html_content += '''
-                <h3 class="section-subtitle"><i class="bi bi-exclamation-octagon-fill"></i> Ações Urgentes (Críticas)</h3>'''
-                for comp in critical_vulns:
-                    comp_name = comp.get('name', 'N/A')
-                    vulns = comp.get('vulnerabilities', [])
-                    critical_vulns_list = [v for v in vulns if v.get('severity') == 'CRITICAL']
-                    
-                    for vuln in critical_vulns_list:
-                        fixed_version = self._resolve_fixed_version(vuln) or 'última versão disponível'
-                        html_content += f'''
-                <div class="recommendation-card">
-                    <div class="title"><i class="bi bi-shield-exclamation"></i> Atualizar {comp_name} imediatamente</div>
-                    <div class="content">
-                        <p><strong>Vulnerabilidade:</strong> {vuln.get('id', 'N/A')} (CVSS: {vuln.get('score', 0)})</p>
-                        <p><strong>Ação:</strong> Atualizar para a versão {fixed_version}</p>
-                        <p><strong>Motivo:</strong> Vulnerabilidade crítica que pode comprometer a segurança do sistema.</p>
-                    </div>
-                </div>'''
-            
-            if high_vulns:
-                html_content += '''
-                <h3 class="section-subtitle"><i class="bi bi-exclamation-triangle-fill"></i> Prioridade Alta</h3>'''
-                for comp in high_vulns:
-                    comp_name = comp.get('name', 'N/A')
-                    vulns = comp.get('vulnerabilities', [])
-                    high_vulns_list = [v for v in vulns if v.get('severity') == 'HIGH']
-                    
-                    for vuln in high_vulns_list:
-                        fixed_version = self._resolve_fixed_version(vuln) or 'última versão disponível'
-                        html_content += f'''
-                <div class="recommendation-card">
-                    <div class="title"><i class="bi bi-exclamation-triangle"></i> Atualizar {comp_name} em breve</div>
-                    <div class="content">
-                        <p><strong>Vulnerabilidade:</strong> {vuln.get('id', 'N/A')} (CVSS: {vuln.get('score', 0)})</p>
-                        <p><strong>Ação:</strong> Atualizar para a versão {fixed_version}</p>
-                        <p><strong>Motivo:</strong> Vulnerabilidade de alta severidade que requer atenção.</p>
-                    </div>
-                </div>'''
-            
             html_content += '''
-                <h3 class="section-subtitle"><i class="bi bi-card-checklist"></i> Recomendações Gerais</h3>
+                <div class="dependency-note">
+                    As recomendações abaixo priorizam atualização segura e mitigação temporária quando a correção imediata não é possível.
+                </div>
+                <h3 class="section-subtitle"><i class="bi bi-card-checklist"></i> Recomendações por Componente</h3>'''
+
+            for component in vulnerable_components:
+                html_content += self._build_component_recommendation_card(component)
+
+            html_content += '''
+                <h3 class="section-subtitle"><i class="bi bi-journal-text"></i> Recomendações Gerais</h3>
                 <div class="recommendation-card">
-                    <div class="title"><i class="bi bi-arrow-repeat"></i> Mantenha seus componentes atualizados</div>
+                    <div class="title"><i class="bi bi-arrow-repeat"></i> Mantenha componentes atualizados com SLA</div>
                     <div class="content">
-                        Execute análises periódicas para identificar novas vulnerabilidades e mantenha todos os componentes em suas versões mais recentes e seguras.
+                        Defina prazos de correção por severidade e execute análises periódicas para capturar novas vulnerabilidades.
                     </div>
                 </div>
-                
+
                 <div class="recommendation-card">
-                    <div class="title"><i class="bi bi-shield-lock"></i> Implemente políticas de segurança</div>
+                    <div class="title"><i class="bi bi-shield-lock"></i> Padronize políticas de segurança</div>
                     <div class="content">
-                        Estabeleça processos de revisão de segurança antes de adicionar novos componentes ao projeto e configure alertas automáticos para vulnerabilidades.
+                        Estabeleça processos de revisão antes de adicionar dependências e configure alertas automáticos de advisories.
                     </div>
                 </div>
-                
+
                 <div class="recommendation-card">
                     <div class="title"><i class="bi bi-journal-text"></i> Monitore fontes oficiais</div>
                     <div class="content">
-                        Acompanhe o NVD, OSS Index e advisories dos mantenedores das bibliotecas utilizadas para se manter informado sobre novas vulnerabilidades.
+                        Acompanhe NVD, OSS Index e comunicados dos mantenedores para agir rapidamente quando surgirem novos riscos.
                     </div>
                 </div>'''
         else:
