@@ -1,0 +1,2 @@
+recursive-include src/basiliskscan/data/offline *.db
+recursive-include resources/offline *.db

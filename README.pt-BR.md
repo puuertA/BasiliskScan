@@ -4,6 +4,13 @@ Este arquivo contem a documentacao em portugues.
 
 A documentacao principal para o PyPI esta em ingles no arquivo `README.md`.
 
+## Banco Offline de Vulnerabilidades
+
+- Caminho padrão do banco: `~/.basiliskscan/offline/offline_vulnerabilities.db`
+- Override opcional: `BASILISKSCAN_OFFLINE_DB_DIR`
+
+O banco vem embutido no pacote em `src/basiliskscan/data/offline/offline_vulnerabilities.db` e é copiado automaticamente no primeiro uso.
+
 ## Instalacao
 
 ```bash

@@ -17,7 +17,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.15-red.svg)](https://github.com/PuertA/basiliskscan)
+[![Version](https://img.shields.io/badge/version-1.5.16-red.svg)](https://github.com/PuertA/basiliskscan)
 
 </div>
 
@@ -97,7 +97,7 @@ bscan scan --project ./my-app --output my-report.html
 - Default DB path: `~/.basiliskscan/offline/offline_vulnerabilities.db`
 - Optional override: `BASILISKSCAN_OFFLINE_DB_DIR`
 
-The database file is bundled with the package and is auto-seeded on first use.
+The database file is bundled with the package from `src/basiliskscan/data/offline/offline_vulnerabilities.db` and is auto-seeded on first use.
 
 ```bash
 # Show local DB status
