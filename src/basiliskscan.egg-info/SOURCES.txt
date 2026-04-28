@@ -1,8 +1,10 @@
 LICENSE
+MANIFEST.in
 README.md
 README.pypi.md
 pyproject.toml
 setup.py
+resources/offline/offline_vulnerabilities.db
 src/basiliskscan/__init__.py
 src/basiliskscan/__main__.py
 src/basiliskscan/cli.py

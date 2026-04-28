@@ -89,6 +89,8 @@
             background: #2a2a2a;
             border-bottom: 2px solid #404040;
             overflow-x: auto;
+            position: relative;
+            z-index: 20;
         }
         
         .nav-tab {
@@ -115,16 +117,24 @@
             color: #4a90d9;
             border-bottom-color: #4a90d9;
         }
-        
+
         /* Content Sections */
         .tab-content {
             display: none;
             padding: 40px;
             background: #1e1e1e;
         }
-        
-        .tab-content.active {
+
+        .tab-content:target {
             display: block;
+        }
+
+        #overview {
+            display: block;
+        }
+
+        body:has(.tab-content:target) #overview {
+            display: none;
         }
         
         .section {
@@ -1350,6 +1360,7 @@
             color: #b0b0b0;
             line-height: 1.6;
         }
+
         
         /* Footer */
         .footer {

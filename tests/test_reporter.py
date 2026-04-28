@@ -370,6 +370,47 @@ class TestReporter(unittest.TestCase):
         self.assertIn("Nenhuma vulnerabilidade conhecida", html)
         self.assertIn("Existe uma versão mais recente ou corrigida", html)
 
+    def test_generate_html_report_renders_actionable_recommendations(self):
+        dependencies = [
+            {
+                "name": "jspdf",
+                "ecosystem": "npm",
+                "version_spec": "2.5.2",
+                "declared_in": "C:/repo/frontend/package-lock.json",
+                "dependency_type": "direct",
+                "is_transitive": False,
+            }
+        ]
+        vulnerabilities = {
+            "jspdf": [
+                {
+                    "id": "CVE-2025-68428",
+                    "severity": "CRITICAL",
+                    "score": 9.2,
+                    "description": "Test vulnerability",
+                    "fixed_version": "4.0.0",
+                    "cvss": {"version": "4.0", "score": 9.2},
+                }
+            ]
+        }
+        report_data = self.reporter.generate_report_data(
+            target_path=pathlib.Path("C:/repo/frontend"),
+            dependencies=dependencies,
+            ecosystems={"npm": 1},
+            output_file="report.html",
+            vulnerabilities=vulnerabilities,
+        )
+
+        html = self.reporter.generate_html_report(report_data)
+
+        self.assertIn("Ações Urgentes (Críticas)", html)
+        self.assertIn("Recomendações Gerais", html)
+        self.assertIn("Atualizar jspdf imediatamente", html)
+        self.assertIn('href="#recommendations"', html)
+        self.assertIn("Versão recomendada:</strong> 4.0.0", html)
+        self.assertIn("CVE-2025-68428", html)
+        self.assertIn('class="recommendation-card"', html)
+
     def test_generate_html_report_renders_normalized_ecosystem_badges(self):
         dependencies = [
             {

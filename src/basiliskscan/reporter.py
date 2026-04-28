@@ -1008,6 +1008,7 @@ class ReportGenerator:
 
         return None
 
+
     def _build_dependency_statuses(
         self,
         dependencies: List[Dict],
@@ -1354,22 +1355,22 @@ class ReportGenerator:
         
         <!-- Navigation Tabs -->
         <div class="nav-tabs">
-            <button class="nav-tab active" onclick="openTab('overview', event)">
+            <a class="nav-tab active" href="#overview" data-tab="overview">
                 <i class="bi bi-bar-chart-line"></i> Visão Geral
-            </button>
-            <button class="nav-tab" onclick="openTab('components', event)">
+            </a>
+            <a class="nav-tab" href="#components" data-tab="components">
                 <i class="bi bi-box-seam"></i> Componentes ({len(grouped_dependencies)})
-            </button>
-            <button class="nav-tab" onclick="openTab('vulnerabilities', event)">
+            </a>
+            <a class="nav-tab" href="#vulnerabilities" data-tab="vulnerabilities">
                 <i class="bi bi-shield-exclamation"></i> Vulnerabilidades ({total_vulnerabilities} em {len(vulnerable_components)} componente(s))
-            </button>
-            <button class="nav-tab" onclick="openTab('recommendations', event)">
+            </a>
+            <a class="nav-tab" href="#recommendations" data-tab="recommendations">
                 <i class="bi bi-lightbulb"></i> Recomendações
-            </button>
+            </a>
         </div>
         
         <!-- Overview Tab -->
-        <div id="overview" class="tab-content active">
+        <div id="overview" class="tab-content" style="display: block;">
             <div class="section">
                 <h2 class="section-title"><i class="bi bi-bar-chart-line"></i> Visão Geral da Análise</h2>
                 
@@ -2135,19 +2136,38 @@ class ReportGenerator:
     </div>
     
     <script>
-        function openTab(tabName, event) {{
+        function setActiveTab(tabName) {{
             const contents = document.querySelectorAll('.tab-content');
-            contents.forEach(content => content.classList.remove('active'));
-            
+            contents.forEach(content => {{
+                content.classList.remove('active');
+                content.style.display = 'none';
+            }});
+
             const tabs = document.querySelectorAll('.nav-tab');
             tabs.forEach(tab => tab.classList.remove('active'));
-            
-            document.getElementById(tabName).classList.add('active');
-            
-            if (event && event.target) {{
-                event.target.classList.add('active');
+
+            const selectedTab = document.getElementById(tabName);
+            if (selectedTab) {{
+                selectedTab.classList.add('active');
+                selectedTab.style.display = 'block';
+            }}
+
+            const tabButton = document.querySelector(`.nav-tab[data-tab="${{tabName}}"]`);
+            if (tabButton) {{
+                tabButton.classList.add('active');
             }}
         }}
+
+        function handleHashChange() {{
+            const tabName = (window.location.hash || '').replace('#', '') || 'overview';
+            setActiveTab(tabName);
+        }}
+
+        document.addEventListener('DOMContentLoaded', function() {{
+            handleHashChange();
+        }});
+
+        window.addEventListener('hashchange', handleHashChange);
 
         function toggleComponent(id) {{
             const content = document.getElementById(id);
