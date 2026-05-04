@@ -476,6 +476,12 @@ class ReportGenerator:
         if total_vulns > len(top_vulns):
             vuln_items.append(f"<li><em>+{total_vulns - len(top_vulns)} vulnerabilidade(s) adicional(is) neste componente.</em></li>")
 
+        advisory_url = None
+        for vuln in vulns:
+            advisory_url = self._extract_advisory_url(vuln)
+            if advisory_url:
+                break
+
         actions = []
         actions.append(f"Atualize {comp_name} para {recommended_version}.")
         actions.extend(self._get_ecosystem_update_hints(ecosystem, comp_name))
@@ -487,12 +493,12 @@ class ReportGenerator:
             actions.append("Como dependência transitiva, atualize a dependência direta que a inclui ou use overrides/resolutions para forçar a versão segura.")
         actions.append("Reexecute testes automatizados e revise mudanças no changelog após a atualização.")
 
-        actions_html = "".join(f"<li>{html.escape(action)}</li>" for action in actions)
+        actions_html = "".join(f"<li>{self._linkify_advisory_text(action, advisory_url)}</li>" for action in actions)
 
         mitigation_hints = []
         for vuln_type in mitigation_types:
             mitigation_hints.extend(self._get_vuln_mitigation_hints(vuln_type))
-        mitigation_html = "".join(f"<li>{html.escape(hint)}</li>" for hint in mitigation_hints)
+        mitigation_html = "".join(f"<li>{self._linkify_advisory_text(hint, advisory_url)}</li>" for hint in mitigation_hints)
 
         return f'''
                 <div class="recommendation-card">
@@ -514,6 +520,119 @@ class ReportGenerator:
                         </ul>
                     </div>
                 </div>'''
+
+    def _build_component_recommendation_vuln_card(self, component: Dict, comp_idx: int) -> str:
+        """Monta um cartão no estilo `vuln-card` para a aba de Recomendações.
+
+        Exibe o componente com botão de expansão e, para cada vulnerabilidade,
+        apresenta ações recomendadas e mitigações em vez da descrição completa.
+        """
+        comp_name = html.escape(str(component.get("name", "N/A") or "N/A"))
+        comp_version = html.escape(str(component.get("version_spec") or component.get("version") or "N/A"))
+        ecosystem_badge = self._get_ecosystem_badge_info(component.get('ecosystem', 'unknown'))
+        vulns = component.get('vulnerabilities', []) or []
+        component_expand_id = f"rec-comp-{comp_idx}"
+
+        # Determinar severidade máxima (para classe do cartão)
+        max_severity = 'low'
+        for vuln in vulns:
+            severity = (vuln.get('severity') or 'UNKNOWN').lower()
+            if severity == 'critical':
+                max_severity = 'critical'
+                break
+            elif severity == 'high' and max_severity != 'critical':
+                max_severity = 'high'
+            elif severity == 'medium' and max_severity not in ['critical', 'high']:
+                max_severity = 'medium'
+
+        html_parts = [f"""
+                <div class="vuln-card {max_severity}" data-component-name="{comp_name.lower()}" data-vuln-count="{len(vulns)}">
+                    <div class="vuln-card-header">
+                        <div class="component-name">
+                            <span>{comp_name}</span>
+                            <span class="ecosystem-badge {ecosystem_badge['class_name']}">{ecosystem_badge['label']}</span>
+                        </div>
+                        <button class="component-toggle" onclick="toggleComponent('{component_expand_id}')">
+                            <span class="expand-arrow" id="arrow-{component_expand_id}">▶</span>
+                            <span class="vuln-count">{len(vulns)} vulnerabilidade(s)</span>
+                        </button>
+                    </div>
+                    <div class="vuln-card-body" id="{component_expand_id}">
+                    <div class="component-section-label"><i class="bi bi-box-seam"></i> Componente analisado</div>
+                    <div class="component-info">
+                        <div class="info-item">
+                            <div class="info-label"><i class="bi bi-pin-angle"></i> Versão Instalada</div>
+                            <div class="info-value version">{comp_version}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="bi bi-shield-exclamation"></i> Vulnerabilidades</div>
+                            <div class="info-value">{len(vulns)} encontrada(s)</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="bi bi-file-earmark-text"></i> Declarado em</div>
+                            <div class="info-value path">{self._format_declared_in_html(component.get('declared_in', 'N/A'))}</div>
+                        </div>
+                    </div>
+
+                    <div class="vuln-section-label"><i class="bi bi-diagram-3"></i> Recomendações por vulnerabilidade ({len(vulns)})</div>
+                    <div class="vuln-list">"""]
+
+        for idx, vuln in enumerate(vulns):
+            vuln_id = html.escape(str(vuln.get('id', 'UNKNOWN') or 'UNKNOWN'))
+            severity = (vuln.get('severity') or 'UNKNOWN').lower()
+            severity_icon = self._get_severity_icon(severity.upper())
+            vuln_type, vuln_explanation = self._get_vuln_type(vuln.get('description', '') or '')
+
+            # Recomendações específicas para este componente/vulnerabilidade
+            fixed_version = self._resolve_fixed_version(vuln) or 'Consulte o advisory'
+            actions = [f"Atualize {comp_name} para {fixed_version}."]
+            actions.extend(self._get_ecosystem_update_hints(component.get('ecosystem', 'unknown'), comp_name))
+            if (component.get('is_transitive') is True) or (str(component.get('relationship') or '').strip().lower() == 'transitive'):
+                actions.append("Como dependência transitiva, atualize a dependência direta ou use overrides/resolutions.")
+            actions.append("Reexecute testes automatizados e revise mudanças no changelog após a atualização.")
+
+            advisory_url = self._extract_advisory_url(vuln)
+            actions_html = ''.join(
+                f"<li>{self._linkify_advisory_text(a, advisory_url)}</li>" for a in actions
+            )
+
+            mitigation_hints = self._get_vuln_mitigation_hints(vuln_type)
+            mitigation_html = ''.join(
+                f"<li>{self._linkify_advisory_text(h, advisory_url)}</li>" for h in mitigation_hints
+            )
+
+            html_parts.append(f"""
+                        <div class="vuln-item {severity}" data-vuln-type="{re.sub(r'[^a-z0-9]+','-', vuln_type.lower()).strip('-') or 'security-issue'}" data-severity="{severity}">
+                            <div class="vuln-header">
+                                <div class="vuln-id">{vuln_id}</div>
+                                <span class="severity-badge {severity}">{severity_icon} {severity.upper()}<span class="tooltip">{html.escape(self._get_severity_description(severity.upper()))}</span></span>
+                            </div>
+
+                            <div class="vuln-meta">
+                                <span class="vuln-type"><i class="bi bi-tag"></i> {vuln_type}
+                                    <span class="tooltip">{html.escape(vuln_explanation)}</span>
+                                </span>
+                            </div>
+
+                            <div class="vuln-description">
+                                <div class="description-header">
+                                    <strong>Recomendações</strong>
+                                </div>
+                                <div class="description-content expanded">
+                                    <p><strong>Ações recomendadas:</strong></p>
+                                    <ul class="recommendation-list">{actions_html}</ul>
+                                    <p><strong>Mitigações complementares:</strong></p>
+                                    <ul class="recommendation-list">{mitigation_html}</ul>
+                                </div>
+                            </div>
+                        </div>""")
+
+        html_parts.append("""
+                    </div>
+                </div>
+                </div>""")
+
+        return ''.join(html_parts)
 
     def _build_vuln_type_legend(self, vulnerable_components: List[Dict]) -> Dict[str, Dict[str, object]]:
         """Monta legenda de tipos de vulnerabilidade para exibição com tooltip na aba."""
@@ -566,9 +685,24 @@ class ReportGenerator:
             HTML formatado
         """
         import re
+        code_blocks: List[tuple] = []
+        inline_codes: List[tuple] = []
         
         # Escapar HTML perigoso primeiro
         text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+        def _store_code_block(match: re.Match) -> str:
+            language = match.group(1) or ""
+            code = match.group(2) or ""
+            placeholder = f"@@BS_CODEBLOCK_{len(code_blocks)}@@"
+            code_blocks.append((placeholder, language, code))
+            return placeholder
+
+        def _store_inline_code(match: re.Match) -> str:
+            code = match.group(1) or ""
+            placeholder = f"@@BS_CODEINLINE_{len(inline_codes)}@@"
+            inline_codes.append((placeholder, code))
+            return placeholder
         
         # Headers (### -> h3, ## -> h2, # -> h1)
         text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
@@ -578,13 +712,13 @@ class ReportGenerator:
         # Blocos de código (```language ... ```)
         text = re.sub(
             r'```(\w+)?\n(.*?)```',
-            r'<pre><code class="language-\1">\2</code></pre>',
+            _store_code_block,
             text,
             flags=re.DOTALL
         )
         
         # Código inline (`code`)
-        text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+        text = re.sub(r'`([^`]+)`', _store_inline_code, text)
         
         # Links [text](url)
         text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank">\1</a>', text)
@@ -599,6 +733,16 @@ class ReportGenerator:
         
         # Quebras de linha
         text = text.replace('\n', '<br>')
+
+        for placeholder, language, code in code_blocks:
+            class_label = f"language-{language}" if language else ""
+            text = text.replace(
+                placeholder,
+                f'<pre><code class="{class_label}">{code}</code></pre>'
+            )
+
+        for placeholder, code in inline_codes:
+            text = text.replace(placeholder, f'<code>{code}</code>')
         
         return text
     
@@ -724,6 +868,67 @@ class ReportGenerator:
         """Gera link para o OSS Index."""
         # Formato simplificado - pode ser melhorado com ecosystem-specific
         return f"https://ossindex.sonatype.org/component/pkg:npm/{component_name}"
+
+    def _extract_advisory_url(self, vuln: Dict) -> Optional[str]:
+        """Extrai URL de advisory a partir das referências da vulnerabilidade."""
+        if not vuln:
+            return None
+
+        references: List[object] = []
+        direct_refs = vuln.get("references")
+        if isinstance(direct_refs, list):
+            references.extend(direct_refs)
+
+        raw_data = vuln.get("raw_data") or {}
+        if isinstance(raw_data, dict):
+            raw_refs = raw_data.get("references")
+            if isinstance(raw_refs, list):
+                references.extend(raw_refs)
+
+        candidates: List[str] = []
+        fallback: List[str] = []
+
+        for ref in references:
+            url = ""
+            tags: List[str] = []
+            if isinstance(ref, str):
+                url = ref
+            elif isinstance(ref, dict):
+                url = str(ref.get("url", "") or "")
+                tag_values = ref.get("tags") or ref.get("type") or ref.get("source") or []
+                if isinstance(tag_values, str):
+                    tags = [tag_values]
+                elif isinstance(tag_values, list):
+                    tags = [str(tag) for tag in tag_values if tag]
+
+            if not url:
+                continue
+            url_lower = url.lower()
+            tag_lower = " ".join(tags).lower()
+
+            if "advisory" in url_lower or "advisory" in tag_lower:
+                candidates.append(url)
+            else:
+                fallback.append(url)
+
+        if candidates:
+            return candidates[0]
+        if fallback:
+            return fallback[0]
+        return None
+
+    def _linkify_advisory_text(self, text: str, advisory_url: Optional[str]) -> str:
+        """Transforma a palavra advisory em hyperlink quando houver URL."""
+        escaped = html.escape(text)
+        if not advisory_url:
+            return escaped
+
+        return re.sub(
+            r"\badvisory\b",
+            lambda match: f'<a href="{html.escape(advisory_url)}" target="_blank" rel="noopener">{match.group(0)}</a>',
+            escaped,
+            flags=re.IGNORECASE,
+        )
 
     def _sanitize_fixed_version_text(self, value: object) -> Optional[str]:
         """Normaliza `fixed_version` textual removendo placeholders inválidos."""
@@ -1009,15 +1214,41 @@ class ReportGenerator:
         file_name = file_path.name.lower()
 
         if ecosystem in {"npm", "ionic"} and file_name in {"package.json", "package-lock.json", "npm-shrinkwrap.json"}:
-            return str(file_path.parent)
+            return self._normalize_group_scope(str(file_path.parent))
 
         if ecosystem == "gradle" and file_name in {"build.gradle", "build.gradle.kts", "gradle.lockfile"}:
-            return str(file_path.parent)
+            return self._normalize_group_scope(str(file_path.parent))
 
         if ecosystem == "maven" and file_name == "pom.xml":
-            return str(file_path.parent)
+            return self._normalize_group_scope(str(file_path.parent))
 
-        return declared_in
+        return self._normalize_group_scope(declared_in)
+
+    def _normalize_group_scope(self, value: str) -> str:
+        """Normaliza paths para agrupamento estável em Windows."""
+        if not value:
+            return ""
+        try:
+            normalized = os.path.normpath(str(value))
+        except (TypeError, ValueError):
+            normalized = str(value)
+        return os.path.normcase(normalized)
+
+    def _format_declared_in_html(self, declared_in: object) -> str:
+        """Formata caminhos declarados preservando quebras de linha."""
+        raw = str(declared_in or "").strip()
+        if not raw:
+            return "N/A"
+
+        if "<br>" in raw:
+            parts = [part.strip() for part in raw.split("<br>") if part.strip()]
+        else:
+            parts = [part.strip() for part in raw.splitlines() if part.strip()]
+
+        if not parts:
+            return "N/A"
+
+        return "<br>".join(html.escape(part) for part in parts)
 
     def _normalize_ecosystem_badge_token(self, ecosystem: object) -> str:
         """Normaliza token de ecossistema para chave estável de badge."""
@@ -1059,13 +1290,14 @@ class ReportGenerator:
                     **dep,
                     "vulnerabilities": [],
                     "max_severity_score": 0,
-                    "declared_in_files": set(),
+                    "declared_in_files": {},
                 }
 
             grouped_entry = grouped_components[group_key]
             declared_in = str(dep.get("declared_in", "") or "")
             if declared_in:
-                grouped_entry["declared_in_files"].add(declared_in)
+                declared_in_key = self._normalize_group_scope(declared_in)
+                grouped_entry["declared_in_files"].setdefault(declared_in_key, declared_in)
 
             existing_ids = {
                 vuln.get("id", "")
@@ -1092,7 +1324,8 @@ class ReportGenerator:
 
         vulnerable_components = list(grouped_components.values())
         for component in vulnerable_components:
-            files = sorted(component.get("declared_in_files", set()))
+            files_map = component.get("declared_in_files", {}) or {}
+            files = [files_map[key] for key in sorted(files_map.keys())]
             component["declared_in"] = "<br>".join(files) if files else component.get("declared_in", "N/A")
 
         vulnerable_components.sort(key=lambda component: component["max_severity_score"], reverse=True)
@@ -2125,7 +2358,7 @@ class ReportGenerator:
                         </div>
                         <div class="info-item">
                             <div class="info-label"><i class="bi bi-file-earmark-text"></i> Declarado em</div>
-                            <div class="info-value path">{comp.get('declared_in', 'N/A')}</div>
+                            <div class="info-value path">{self._format_declared_in_html(comp.get('declared_in', 'N/A'))}</div>
                         </div>
                     </div>
 
@@ -2246,13 +2479,13 @@ class ReportGenerator:
                 </div>
                 <h3 class="section-subtitle"><i class="bi bi-card-checklist"></i> Recomendações por Componente</h3>'''
 
-            for component in vulnerable_components:
-                html_content += self._build_component_recommendation_card(component)
+            for idx, component in enumerate(vulnerable_components):
+                html_content += self._build_component_recommendation_vuln_card(component, idx)
 
             html_content += '''
                 <h3 class="section-subtitle"><i class="bi bi-journal-text"></i> Recomendações Gerais</h3>
                 <div class="recommendation-card">
-                    <div class="title"><i class="bi bi-arrow-repeat"></i> Mantenha componentes atualizados com SLA</div>
+                    <div class="title"><i class="bi bi-arrow-repeat"></i> Mantenha componentes atualizados com <span class="inline-tooltip">SLA<span class="tooltip tooltip-inline">SLA (Service Level Agreement) é um acordo de nível de serviço que define prazos e metas de correção por severidade.</span></span></div>
                     <div class="content">
                         Defina prazos de correção por severidade e execute análises periódicas para capturar novas vulnerabilidades.
                     </div>
@@ -2268,7 +2501,7 @@ class ReportGenerator:
                 <div class="recommendation-card">
                     <div class="title"><i class="bi bi-journal-text"></i> Monitore fontes oficiais</div>
                     <div class="content">
-                        Acompanhe NVD, OSS Index e comunicados dos mantenedores para agir rapidamente quando surgirem novos riscos.
+                        Acompanhe <a href="https://nvd.nist.gov/" target="_blank" rel="noopener">NVD</a>, <a href="https://ossindex.sonatype.org/" target="_blank" rel="noopener">OSS Index</a> e comunicados dos mantenedores para agir rapidamente quando surgirem novos riscos.
                     </div>
                 </div>'''
         else:
@@ -2291,6 +2524,17 @@ class ReportGenerator:
     </div>
     
     <script>
+        function openTab(tabName, event) {{
+            // Compatibilidade com chamadas antigas que usam onclick="openTab(...)"
+            if (event && event.target) {{
+                // marca botão como ativo
+                try {{ event.target.classList.add('active'); }} catch (e) {{}}
+            }}
+            // atualiza hash sem forçar reload
+            try {{ history.replaceState(null, null, '#' + tabName); }} catch (e) {{}}
+            setActiveTab(tabName);
+        }}
+
         function setActiveTab(tabName) {{
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(content => {{
