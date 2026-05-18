@@ -35,6 +35,17 @@ bscan --help
 bscan scan
 ```
 
+## Arquitetura (inspirada em MVC para CLI)
+
+O projeto foi organizado em camadas para manter a CLI enxuta e facilitar testes:
+
+- `controllers/`: orquestra fluxos (scan, offline DB, credenciais)
+- `services/`: regras de negocio e integracoes (scanner, updater, ingest)
+- `parsers/`: parsers por ecossistema focados apenas em extrair dependencias
+- `reports/`: gerador de relatorio HTML e assets
+- `views/`: UI do terminal, textos de ajuda e utilitarios de apresentacao
+- `models/`: modelos de dominio (componentes, vulnerabilidades)
+
 ## Link util
 
 - Repositorio: https://github.com/PuertA/basiliskscan

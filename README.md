@@ -17,7 +17,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.18-red.svg)](https://github.com/PuertA/basiliskscan)
+[![Version](https://img.shields.io/badge/version-1.5.19-red.svg)](https://github.com/PuertA/basiliskscan)
 
 </div>
 
@@ -34,6 +34,19 @@ BasiliskScan is a command-line tool that scans projects, identifies dependencies
 - Offline vulnerability database mode
 - Rich terminal UI with progress and status feedback
 - Interactive HTML report output
+
+## Architecture (MVC-inspired for CLI)
+
+The codebase is organized into clear layers while preserving CLI behavior:
+
+- `controllers/`: Orchestrates flows (scan, offline DB, credentials)
+- `services/`: Business logic and integrations (scanner, updater, ingest)
+- `parsers/`: Ecosystem parsers focused on dependency extraction only
+- `reports/`: HTML report generator and assets
+- `views/`: Terminal UI, help text, and presentation utilities
+- `models/`: Domain data structures (components, vulnerabilities)
+
+This structure keeps the CLI thin and keeps logic isolated and testable.
 
 ## Supported Files
 

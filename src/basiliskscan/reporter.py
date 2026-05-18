@@ -1,5 +1,9 @@
 # src/basiliskscan/reporter.py
-"""Módulo responsável pela geração de relatórios e apresentação de resultados."""
+"""Compatibilidade para o gerador de relatórios HTML."""
+
+from .reports.html_reporter import ReportGenerator
+
+__all__ = ["ReportGenerator"]
 
 import pathlib
 import time

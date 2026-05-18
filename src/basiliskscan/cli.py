@@ -5,8 +5,8 @@ import click
 
 from .config import APP_VERSION, APP_NAME
 from .env import load_dotenv
-from .help_text import APP_DESCRIPTION
-from .ui import BasiliskGroup, UIHelper
+from .views.help_view import APP_DESCRIPTION
+from .views.terminal_view import BasiliskGroup, UIHelper
 from .commands import (
     scan_command,
     nvd_key_command,

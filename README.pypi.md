@@ -31,6 +31,17 @@ This command auto-adds your Python Scripts directory to `PATH` (user scope).
 - Supports offline vulnerability database mode
 - Generates rich HTML reports
 
+## Architecture (MVC-inspired for CLI)
+
+The codebase is organized into clear layers to keep the CLI thin:
+
+- `controllers/`: flow orchestration (scan, offline DB, credentials)
+- `services/`: business logic and integrations (scanner, updater, ingest)
+- `parsers/`: ecosystem parsers focused on dependency extraction
+- `reports/`: HTML report generator and assets
+- `views/`: terminal UI and help text
+- `models/`: domain models (components, vulnerabilities)
+
 ## Supported Files
 
 - **Node.js / Ionic**: `package.json`, `package-lock.json`, `npm-shrinkwrap.json`

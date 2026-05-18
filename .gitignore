@@ -148,6 +148,7 @@ basiliskscan-report*.html
 basiliskscan-report*.json
 *.report.html
 *.report.json
+reports/
 
 # Arquivos de documentação markdown temporários
 *_SUMMARY.md
@@ -171,6 +172,11 @@ INTEGRATION_GUIDE.md
 # Logs
 *.log
 logs/
+
+# Bancos de dados locais
+*.db
+*.sqlite
+*.sqlite3
 
 # Diretórios de dependências (para testes)
 node_modules/
