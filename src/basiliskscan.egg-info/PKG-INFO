@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: basiliskscan
-Version: 1.5.19
+Version: 1.5.20
 Summary: BasiliskScan - CLI para varrer projetos e listar dependências vulneráveis ou desatualizadas.
 Author: PuertA
 License-Expression: MIT
@@ -64,6 +64,17 @@ This command auto-adds your Python Scripts directory to `PATH` (user scope).
 - Aggregates vulnerability data from OSV, NVD, and Sonatype Guide
 - Supports offline vulnerability database mode
 - Generates rich HTML reports
+
+## Architecture (MVC-inspired for CLI)
+
+The codebase is organized into clear layers to keep the CLI thin:
+
+- `controllers/`: flow orchestration (scan, offline DB, credentials)
+- `services/`: business logic and integrations (scanner, updater, ingest)
+- `parsers/`: ecosystem parsers focused on dependency extraction
+- `reports/`: HTML report generator and assets
+- `views/`: terminal UI and help text
+- `models/`: domain models (components, vulnerabilities)
 
 ## Supported Files
 

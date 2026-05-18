@@ -54,7 +54,11 @@ class OfflineSyncService:
             "saved_vulnerabilities": saved_vulnerabilities,
         }
 
-    def get_vulnerabilities_for_components(self, components: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    def get_vulnerabilities_for_components(
+        self,
+        components: List[Dict[str, Any]],
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Obtém vulnerabilidades somente do banco local para execução offline."""
         results: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -66,6 +70,9 @@ class OfflineSyncService:
             version = component.get("version")
             ecosystem = component.get("ecosystem")
             results[name] = self.db.get_component_vulnerabilities(name, version, ecosystem)
+
+            if progress_callback:
+                progress_callback(name)
 
         return results
 

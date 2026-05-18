@@ -29,6 +29,10 @@ src/basiliskscan/commands/nvd.py
 src/basiliskscan/commands/offline_db.py
 src/basiliskscan/commands/scan.py
 src/basiliskscan/commands/sonatype_guide.py
+src/basiliskscan/controllers/__init__.py
+src/basiliskscan/controllers/credentials_controller.py
+src/basiliskscan/controllers/offline_db_controller.py
+src/basiliskscan/controllers/scan_controller.py
 src/basiliskscan/data/report.css
 src/basiliskscan/data/vulnerability_types.json
 src/basiliskscan/data/offline/offline_vulnerabilities.db
@@ -56,6 +60,15 @@ src/basiliskscan/parsers/java.py
 src/basiliskscan/parsers/nodejs.py
 src/basiliskscan/parsers/php.py
 src/basiliskscan/parsers/purl.py
+src/basiliskscan/reports/__init__.py
+src/basiliskscan/reports/html_reporter.py
+src/basiliskscan/services/__init__.py
+src/basiliskscan/services/dependency_update_service.py
+src/basiliskscan/services/scanner_service.py
+src/basiliskscan/utils/__init__.py
+src/basiliskscan/views/__init__.py
+src/basiliskscan/views/help_view.py
+src/basiliskscan/views/terminal_view.py
 tests/test_aggregator_sources.py
 tests/test_cache.py
 tests/test_cli_help.py
@@ -70,6 +83,7 @@ tests/test_nvd_client.py
 tests/test_nvd_commands.py
 tests/test_offline_sync.py
 tests/test_osv_client.py
+tests/test_osv_integration.py
 tests/test_php_parser.py
 tests/test_reporter.py
 tests/test_scan_filters.py

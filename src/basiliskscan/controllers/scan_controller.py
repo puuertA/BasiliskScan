@@ -138,6 +138,7 @@ class ScanController:
                             SpinnerColumn(),
                             BarColumn(),
                             TextColumn("[bold blue]{task.description}"),
+                            TextColumn("{task.completed}/{task.total}"),
                             TimeElapsedColumn(),
                             console=ui.console,
                         ) as progress:
@@ -162,6 +163,8 @@ class ScanController:
 
             vulnerabilities = {}
             offline_sync_service: Optional[OfflineSyncService] = None
+            components_to_check: list[dict] = []
+            allow_weekly_sync_prompt = False
             if not skip_vulns and dependencies:
                 ui.console.print("[cyan]🔍 Buscando vulnerabilidades...[/cyan]")
 
@@ -170,19 +173,35 @@ class ScanController:
                     aggregator = VulnerabilityAggregator()
 
                     components_to_check = self._build_unique_components_for_vuln_scan(dependencies)
+                    allow_weekly_sync_prompt = not offline
 
                     if offline:
                         ui.console.print(
                             "[yellow]📦 Modo offline ativo: usando apenas banco local de vulnerabilidades[/yellow]"
                         )
-                        vulnerabilities = offline_sync_service.get_vulnerabilities_for_components(components_to_check)
-                    else:
-                        auto_sync_summary = offline_sync_service.run_weekly_auto_sync_if_needed()
-                        if auto_sync_summary and auto_sync_summary.get("processed", 0) > 0:
-                            ui.console.print(
-                                "[dim]↻ Atualização semanal automática do banco offline concluída: "
-                                f"{auto_sync_summary['synced']}/{auto_sync_summary['processed']} componente(s).[/dim]"
+                        with Progress(
+                            SpinnerColumn(),
+                            BarColumn(),
+                            TextColumn("[bold blue]{task.description}"),
+                            TextColumn("{task.completed}/{task.total}"),
+                            TimeElapsedColumn(),
+                            console=ui.console,
+                        ) as progress:
+                            task = progress.add_task(
+                                "📦 Consultando banco offline...",
+                                total=len(components_to_check),
                             )
+
+                            def update_offline_progress(component_name: str):
+                                progress.update(task, description=f"📦 Consultando {component_name}...")
+                                progress.advance(task)
+
+                            vulnerabilities = offline_sync_service.get_vulnerabilities_for_components(
+                                components_to_check,
+                                progress_callback=update_offline_progress,
+                            )
+                    else:
+                        auto_sync_summary = None
 
                     if not offline:
                         ui.console.print(f"[dim]   Analisando {len(components_to_check)} componente(s)...[/dim]")
@@ -208,27 +227,6 @@ class ScanController:
                                 progress_callback=update_vulnerability_progress,
                             )
 
-                        ui.console.print("[cyan]💾 Sincronizando componentes para banco offline...[/cyan]")
-                        with Progress(
-                            SpinnerColumn(),
-                            TextColumn("[bold blue]{task.description}"),
-                            TimeElapsedColumn(),
-                            console=ui.console,
-                        ) as progress:
-                            task = progress.add_task("💾 Gravando no banco offline...", total=None)
-                            sync_summary = offline_sync_service.sync_components(
-                                components=components_to_check,
-                                force=False,
-                                progress_callback=lambda name: progress.update(
-                                    task, description=f"💾 Sincronizando {name}..."
-                                ),
-                            )
-                        if sync_summary.get("synced", 0) > 0:
-                            ui.console.print(
-                                f"[dim]↪ {sync_summary['synced']}/{sync_summary['processed']} componente(s) "
-                                "sincronizado(s) para banco offline local[/dim]"
-                            )
-
                         offline_sync_service.ingest_scan_results(
                             components=components_to_check,
                             vulnerabilities_by_name=vulnerabilities,
@@ -250,8 +248,7 @@ class ScanController:
                     ui.console.print("[dim]   Continuando sem análise de vulnerabilidades...[/dim]")
                     vulnerabilities = {}
                 finally:
-                    if offline_sync_service:
-                        offline_sync_service.close()
+                    pass
             elif skip_vulns:
                 ui.console.print("[dim]🔍 Análise de vulnerabilidades pulada (--skip-vulns)[/dim]")
 
@@ -300,6 +297,70 @@ class ScanController:
                 handle_file_save_error(exc, output)
 
             reporter.display_scan_results(dependencies, ecosystems, final_output_path, vulnerabilities)
+
+            if offline_sync_service and components_to_check:
+                if allow_weekly_sync_prompt:
+                    should_sync_weekly = click.confirm(
+                        "Deseja sincronizar o banco offline agora? Isso pode demorar.",
+                        default=False,
+                    )
+                    if should_sync_weekly:
+                        with Progress(
+                            SpinnerColumn(),
+                            TextColumn("[bold blue]{task.description}"),
+                            TimeElapsedColumn(),
+                            console=ui.console,
+                        ) as progress:
+                            task = progress.add_task(
+                                "↻ Verificando sincronização semanal do banco offline...",
+                                total=None,
+                            )
+
+                            def update_weekly_sync_progress(component_name: str):
+                                progress.update(task, description=f"↻ Sincronizando {component_name}...")
+                                progress.advance(task)
+
+                            auto_sync_summary = offline_sync_service.run_weekly_auto_sync_if_needed(
+                                progress_callback=update_weekly_sync_progress,
+                            )
+                        if auto_sync_summary and auto_sync_summary.get("processed", 0) > 0:
+                            ui.console.print(
+                                "[dim]↻ Atualização semanal automática do banco offline concluída: "
+                                f"{auto_sync_summary['synced']}/{auto_sync_summary['processed']} componente(s).[/dim]"
+                            )
+                    else:
+                        ui.console.print("[dim]↻ Sincronização semanal ignorada pelo usuário.[/dim]")
+
+                should_sync_components = click.confirm(
+                    "Deseja sincronizar os componentes encontrados no banco offline?",
+                    default=False,
+                )
+                if should_sync_components:
+                    ui.console.print("[cyan]💾 Sincronizando componentes para banco offline...[/cyan]")
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[bold blue]{task.description}"),
+                        TimeElapsedColumn(),
+                        console=ui.console,
+                    ) as progress:
+                        task = progress.add_task("💾 Gravando no banco offline...", total=None)
+                        sync_summary = offline_sync_service.sync_components(
+                            components=components_to_check,
+                            force=False,
+                            progress_callback=lambda name: progress.update(
+                                task, description=f"💾 Sincronizando {name}..."
+                            ),
+                        )
+                    if sync_summary.get("synced", 0) > 0:
+                        ui.console.print(
+                            f"[dim]↪ {sync_summary['synced']}/{sync_summary['processed']} componente(s) "
+                            "sincronizado(s) para banco offline local[/dim]"
+                        )
+                else:
+                    ui.console.print("[dim]💾 Sincronização dos componentes ignorada pelo usuário.[/dim]")
+
+            if offline_sync_service:
+                offline_sync_service.close()
 
         except KeyboardInterrupt:
             ui.display_warning("Operação cancelada pelo usuário.")
