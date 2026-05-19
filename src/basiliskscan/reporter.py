@@ -698,13 +698,17 @@ class ReportGenerator:
         def _store_code_block(match: re.Match) -> str:
             language = match.group(1) or ""
             code = match.group(2) or ""
-            placeholder = f"@@BS_CODEBLOCK_{len(code_blocks)}@@"
+            # Usar placeholder com caracteres que não sejam interpretados como Markdown
+            # (sem underscores para evitar captura por regex de italic _text_)
+            placeholder = f"@@BSCODEBLOCK{len(code_blocks)}@@"
             code_blocks.append((placeholder, language, code))
             return placeholder
 
         def _store_inline_code(match: re.Match) -> str:
             code = match.group(1) or ""
-            placeholder = f"@@BS_CODEINLINE_{len(inline_codes)}@@"
+            # Usar placeholder com caracteres que não sejam interpretados como Markdown
+            # (sem underscores para evitar captura por regex de italic _text_)
+            placeholder = f"@@BSCODEINLINE{len(inline_codes)}@@"
             inline_codes.append((placeholder, code))
             return placeholder
         
@@ -738,6 +742,8 @@ class ReportGenerator:
         # Quebras de linha
         text = text.replace('\n', '<br>')
 
+        # IMPORTANTE: Restaurar placeholders DEPOIS de processar formatting
+        # para evitar que o padrão de italic _text_ capture partes do placeholder
         for placeholder, language, code in code_blocks:
             class_label = f"language-{language}" if language else ""
             text = text.replace(
