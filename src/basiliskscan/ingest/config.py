@@ -65,7 +65,7 @@ class IngestConfig:
     
     def get_oss_index_credentials(self) -> tuple[Optional[str], Optional[str]]:
         """
-        Obtém credenciais do OSS Index.
+        Obtém credenciais da Sonatype Guide.
         
         Ordem de prioridade:
         1. Variáveis de ambiente OSS_INDEX_USERNAME e OSS_INDEX_TOKEN
@@ -79,10 +79,10 @@ class IngestConfig:
     
     def set_oss_index_credentials(self, username: str, token: str):
         """
-        Define credenciais do OSS Index no arquivo de credenciais central.
+        Define credenciais da Sonatype Guide no arquivo de credenciais central.
         
         Args:
-            username: Username do OSS Index
+            username: Username da Sonatype Guide
             token: Token de autenticação
         """
         self.credential_manager.set_credentials(

@@ -13,7 +13,7 @@ from .config import get_config
 
 
 class SonatypeGuideClient(VulnerabilitySource):
-    """Cliente de vulnerabilidades baseado na API Sonatype Guide (compatibilidade OSS Index)."""
+    """Cliente de vulnerabilidades baseado na API Sonatype Guide."""
 
     GUIDE_API_BASE = "https://api.guide.sonatype.com"
     LEGACY_API_BASE = "https://ossindex.sonatype.org/api/v3"
@@ -140,7 +140,7 @@ class SonatypeGuideClient(VulnerabilitySource):
         ]
 
     def _fetch_from_legacy_api(self, purl: str) -> List[Dict[str, Any]]:
-        """Fallback para API legada OSS Index (Basic Auth)."""
+        """Fallback para a API legada do provedor (Basic Auth)."""
         if not self.username or not self.token:
             return []
 
@@ -182,7 +182,8 @@ class SonatypeGuideClient(VulnerabilitySource):
         if normalized_ecosystem == "maven":
             if ":" not in name:
                 return None
-            package_name = name
+            group_id, artifact_id = name.split(":", 1)
+            package_name = f"{group_id}/{artifact_id}"
         else:
             package_name = name
 

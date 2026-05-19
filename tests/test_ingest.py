@@ -19,7 +19,13 @@ class TestNVDClient(unittest.TestCase):
     
     def setUp(self):
         """Configura o cliente para testes."""
+        self.config_patcher = patch("basiliskscan.ingest.nvd.get_config")
+        mock_config = self.config_patcher.start()
+        mock_config.return_value.get_nvd_api_key.return_value = None
         self.client = NVDClient()
+
+    def tearDown(self):
+        self.config_patcher.stop()
     
     def test_initialization(self):
         """Testa inicialização do cliente."""
@@ -39,7 +45,16 @@ class TestNVDClient(unittest.TestCase):
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "vulnerabilities": [
-                {"cve": {"id": "CVE-2021-44228"}}
+                {
+                    "cve": {
+                        "id": "CVE-2021-44228",
+                        "descriptions": [
+                            {"lang": "en", "value": "Apache Log4j vulnerability"}
+                        ],
+                        "configurations": [],
+                        "references": [],
+                    }
+                }
             ]
         }
         mock_get.return_value = mock_response
@@ -98,9 +113,9 @@ class TestSonatypeGuideClient(unittest.TestCase):
         purl = self.client._build_purl("requests", "2.28.0", "pypi")
         self.assertEqual(purl, "pkg:pypi/requests@2.28.0")
     
-    @patch('basiliskscan.ingest.oss_index.requests.Session.post')
-    def test_fetch_by_purl(self, mock_post):
-        """Testa busca por purl."""
+    @patch('basiliskscan.ingest.sonatype_guide.requests.Session.post')
+    def test_fetch_vulnerabilities(self, mock_post):
+        """Testa busca de vulnerabilidades na Sonatype Guide."""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
@@ -111,7 +126,7 @@ class TestSonatypeGuideClient(unittest.TestCase):
         ]
         mock_post.return_value = mock_response
         
-        results = self.client.fetch_by_purl(["pkg:npm/express@4.17.1"])
+        results = self.client.fetch_vulnerabilities("express", version="4.17.1", ecosystem="npm")
         
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["coordinates"], "pkg:npm/express@4.17.1")

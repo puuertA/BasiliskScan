@@ -108,7 +108,7 @@ class CacheManager:
         Busca vulnerabilidades no cache.
         
         Args:
-            source: Nome da fonte (NVD, OSS Index, etc.)
+            source: Nome da fonte (NVD, Sonatype Guide, etc.)
             component: Nome do componente
             version: Versão específica (opcional)
             ecosystem: Ecosistema (opcional)

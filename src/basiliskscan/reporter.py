@@ -875,7 +875,7 @@ class ReportGenerator:
         return ""
     
     def _get_oss_index_link(self, component_name: str) -> str:
-        """Compatibilidade: gera link para o componente no Sonatype Guide (antigo OSS Index)."""
+        """Compatibilidade: gera link para o componente no Sonatype Guide."""
         # Mantém compatibilidade com lugares que chamam esta função.
         if not component_name:
             return ""

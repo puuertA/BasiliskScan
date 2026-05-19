@@ -230,7 +230,7 @@ class CredentialManager:
         return credentials.data.get("api_key")
 
     def get_oss_index_credentials(self) -> tuple[Optional[str], Optional[str]]:
-        """Atalho para obter credenciais do OSS Index."""
+        """Atalho para obter credenciais da Sonatype Guide."""
         credentials = self.discover_credentials("oss_index")
         if not credentials:
             return (None, None)

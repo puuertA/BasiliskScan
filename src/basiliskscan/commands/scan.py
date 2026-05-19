@@ -89,3 +89,13 @@ def scan_command(
     """
     controller = ScanController()
     controller.execute(project, url, output, skip_vulns, include_transitive, offline)
+
+
+def _is_transitive_dependency(dependency: dict) -> bool:
+    """Compatibilidade com testes e código legado."""
+    return ScanController._is_transitive_dependency(dependency)
+
+
+def _filter_scan_dependencies(dependencies: list[dict], include_transitive: bool) -> list[dict]:
+    """Compatibilidade com testes e código legado."""
+    return ScanController._filter_scan_dependencies(dependencies, include_transitive)

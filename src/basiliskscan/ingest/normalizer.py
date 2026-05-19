@@ -157,10 +157,10 @@ class VulnerabilityNormalizer:
         vulnerability: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Normaliza dados de vulnerabilidade do Sonatype Guide (compatível com OSS Index) para formato comum.
+        Normaliza dados de vulnerabilidade do Sonatype Guide para formato comum.
         
         Args:
-            oss_data: Dados do componente retornado pela Sonatype Guide/OSS Index
+            oss_data: Dados do componente retornado pela Sonatype Guide
             vulnerability: Dados específicos da vulnerabilidade
             
         Returns:
@@ -211,7 +211,7 @@ class VulnerabilityNormalizer:
             "severity": severity,
             "cvss": cvss_data,
             "score": cvss_score,
-            "published": None,  # Sonatype Guide/OSS Index não fornece data de publicação
+            "published": None,  # Sonatype Guide não fornece data de publicação
             "modified": None,
             "references": references,
             "affected_products": [component_info],
@@ -225,10 +225,10 @@ class VulnerabilityNormalizer:
     @staticmethod
     def normalize_oss_index_component(oss_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Normaliza todas as vulnerabilidades de um componente retornado pela Sonatype Guide/OSS Index.
+        Normaliza todas as vulnerabilidades de um componente retornado pela Sonatype Guide.
         
         Args:
-            oss_data: Dados do componente retornado pela Sonatype Guide/OSS Index
+            oss_data: Dados do componente retornado pela Sonatype Guide
             
         Returns:
             Lista de vulnerabilidades normalizadas
