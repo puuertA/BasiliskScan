@@ -263,19 +263,19 @@ class TestCacheIntegration(unittest.TestCase):
         
         # Armazena dados de múltiplas fontes
         nvd_vulns = [{"id": "CVE-2021-44228", "source": "NVD"}]
-        oss_vulns = [{"id": "OSS-123", "source": "OSS Index"}]
-        
+        oss_vulns = [{"id": "OSS-123", "source": "Sonatype Guide"}]
+
         cache_manager.set("NVD", "log4j", nvd_vulns)
-        cache_manager.set("OSS Index", "log4j", oss_vulns)
-        
+        cache_manager.set("Sonatype Guide", "log4j", oss_vulns)
+
         # Recupera de cada fonte
         nvd_result = cache_manager.get("NVD", "log4j")
-        oss_result = cache_manager.get("OSS Index", "log4j")
-        
+        oss_result = cache_manager.get("Sonatype Guide", "log4j")
+
         self.assertIsNotNone(nvd_result)
         self.assertIsNotNone(oss_result)
         self.assertEqual(nvd_result[0]["source"], "NVD")
-        self.assertEqual(oss_result[0]["source"], "OSS Index")
+        self.assertEqual(oss_result[0]["source"], "Sonatype Guide")
         
         cache_manager.close()
     

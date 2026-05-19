@@ -77,6 +77,7 @@ tests/test_credential_manager.py
 tests/test_env_loader.py
 tests/test_ingest.py
 tests/test_java_parser.py
+tests/test_markdown_placeholders.py
 tests/test_nodejs_parser.py
 tests/test_normalizer.py
 tests/test_nvd_client.py

@@ -65,7 +65,7 @@ class TestVulnerabilityAggregatorSources(unittest.TestCase):
                         "description": "RCE in log4j",
                         "cvssScore": 10.0,
                         "cvssVector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
-                        "reference": "https://ossindex.sonatype.org/vulnerability/CVE-2021-44228",
+                        "reference": "https://guide.sonatype.com/vulnerability/CVE-2021-44228",
                         "cwe": "CWE-20",
                     }
                 ],

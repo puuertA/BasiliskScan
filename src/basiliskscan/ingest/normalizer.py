@@ -157,10 +157,10 @@ class VulnerabilityNormalizer:
         vulnerability: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Normaliza dados de vulnerabilidade do OSS Index para formato comum.
+        Normaliza dados de vulnerabilidade do Sonatype Guide (compatível com OSS Index) para formato comum.
         
         Args:
-            oss_data: Dados do componente do OSS Index
+            oss_data: Dados do componente retornado pela Sonatype Guide/OSS Index
             vulnerability: Dados específicos da vulnerabilidade
             
         Returns:
@@ -189,7 +189,7 @@ class VulnerabilityNormalizer:
         if vulnerability.get("reference"):
             references.append({
                 "url": vulnerability["reference"],
-                "source": "OSS Index",
+                "source": "Sonatype Guide",
                 "tags": []
             })
         
@@ -205,13 +205,13 @@ class VulnerabilityNormalizer:
         
         return {
             "id": cve if cve else vuln_id,
-            "source": "OSS Index",
+            "source": "Sonatype Guide",
             "title": title,
             "description": description,
             "severity": severity,
             "cvss": cvss_data,
             "score": cvss_score,
-            "published": None,  # OSS Index não fornece data de publicação
+            "published": None,  # Sonatype Guide/OSS Index não fornece data de publicação
             "modified": None,
             "references": references,
             "affected_products": [component_info],
@@ -225,10 +225,10 @@ class VulnerabilityNormalizer:
     @staticmethod
     def normalize_oss_index_component(oss_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Normaliza todas as vulnerabilidades de um componente do OSS Index.
+        Normaliza todas as vulnerabilidades de um componente retornado pela Sonatype Guide/OSS Index.
         
         Args:
-            oss_data: Dados do componente do OSS Index
+            oss_data: Dados do componente retornado pela Sonatype Guide/OSS Index
             
         Returns:
             Lista de vulnerabilidades normalizadas

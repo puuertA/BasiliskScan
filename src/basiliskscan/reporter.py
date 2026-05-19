@@ -875,9 +875,59 @@ class ReportGenerator:
         return ""
     
     def _get_oss_index_link(self, component_name: str) -> str:
-        """Gera link para o OSS Index."""
-        # Formato simplificado - pode ser melhorado com ecosystem-specific
-        return f"https://ossindex.sonatype.org/component/pkg:npm/{component_name}"
+        """Compatibilidade: gera link para o componente no Sonatype Guide (antigo OSS Index)."""
+        # Mantém compatibilidade com lugares que chamam esta função.
+        if not component_name:
+            return ""
+        return f"https://guide.sonatype.com/component/pkg:npm/{component_name}"
+
+    def _get_sonatype_guide_link(self, vuln: Optional[Dict] = None, component_name: Optional[str] = None) -> str:
+        """Gera link apropriado para Sonatype Guide.
+
+        - Se a vulnerabilidade possuir um identificador CVE válido, retorna
+          https://guide.sonatype.com/vulnerability/{CVE_ID}
+        - Caso contrário, quando `component_name` for fornecido, retorna o
+          link do componente em /component/pkg:... (fallback)
+        """
+        # Tenta extrair CVE a partir de diferentes localizações na estrutura
+        if vuln:
+            # 1) Checa campo id
+            vid = str(vuln.get("id", "") or "").strip()
+            if vid.startswith("CVE-"):
+                return f"https://guide.sonatype.com/vulnerability/{vid}"
+
+            # 2) Checa aliases ou aliases/raw aliases
+            aliases = vuln.get("aliases") or []
+            if isinstance(aliases, list):
+                for a in aliases:
+                    try:
+                        if isinstance(a, str) and a.startswith("CVE-"):
+                            return f"https://guide.sonatype.com/vulnerability/{a}"
+                    except Exception:
+                        continue
+
+            # 3) Checa raw_data para possíveis identificadores
+            raw = vuln.get("raw_data") or {}
+            if isinstance(raw, dict):
+                # Possíveis caminhos comuns
+                cve_field = raw.get("cve") or raw.get("CVE")
+                if isinstance(cve_field, str) and cve_field.startswith("CVE-"):
+                    return f"https://guide.sonatype.com/vulnerability/{cve_field}"
+                # Alguns retornos colocam o cve em raw_data['vulnerability']['cve']
+                try:
+                    nested = raw.get("vulnerability") or {}
+                    if isinstance(nested, dict):
+                        nested_cve = nested.get("cve")
+                        if isinstance(nested_cve, str) and nested_cve.startswith("CVE-"):
+                            return f"https://guide.sonatype.com/vulnerability/{nested_cve}"
+                except Exception:
+                    pass
+
+        # Sem CVE encontrado, monta link de componente quando possível
+        if component_name:
+            return f"https://guide.sonatype.com/component/pkg:npm/{component_name}"
+
+        return ""
 
     def _extract_advisory_url(self, vuln: Dict) -> Optional[str]:
         """Extrai URL de advisory a partir das referências da vulnerabilidade."""
@@ -2452,9 +2502,10 @@ class ReportGenerator:
                                     <i class="bi bi-link-45deg"></i> Ver no NVD
                                 </a>'''
                     
+                    guide_link = self._get_sonatype_guide_link(vuln, comp_name)
                     html_content += f'''
-                                <a href="{self._get_oss_index_link(comp_name)}" target="_blank" class="btn btn-secondary">
-                                    <i class="bi bi-journal-text"></i> OSS Index
+                                <a href="{guide_link}" target="_blank" class="btn btn-secondary">
+                                    <i class="bi bi-journal-text"></i> Sonatype Guide
                                 </a>
                             </div>
                         </div>'''
@@ -2511,7 +2562,7 @@ class ReportGenerator:
                 <div class="recommendation-card">
                     <div class="title"><i class="bi bi-journal-text"></i> Monitore fontes oficiais</div>
                     <div class="content">
-                        Acompanhe <a href="https://nvd.nist.gov/" target="_blank" rel="noopener">NVD</a>, <a href="https://ossindex.sonatype.org/" target="_blank" rel="noopener">OSS Index</a> e comunicados dos mantenedores para agir rapidamente quando surgirem novos riscos.
+                        Acompanhe <a href="https://nvd.nist.gov/" target="_blank" rel="noopener">NVD</a>, <a href="https://guide.sonatype.com/" target="_blank" rel="noopener">Sonatype Guide</a> e comunicados dos mantenedores para agir rapidamente quando surgirem novos riscos.
                     </div>
                 </div>'''
         else:

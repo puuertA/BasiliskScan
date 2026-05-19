@@ -305,7 +305,7 @@ class CredentialsController:
         api_guide_url = "https://guide.sonatype.com/api"
         profile_url = "https://guide.sonatype.com/settings/profile"
         token_management_url = "https://guide.sonatype.com/settings/tokens"
-        docs_url = "https://ossindex.sonatype.org/doc"
+        docs_url = "https://guide.sonatype.com"
 
         ui.console.print("[bold green]🧭 Guia rápido Sonatype Guide[/bold green]")
         ui.console.print("\n1) Acesse o Sonatype Guide:")

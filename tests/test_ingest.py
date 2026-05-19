@@ -8,9 +8,9 @@ from datetime import datetime
 
 from basiliskscan.ingest import (
     NVDClient,
-    OSSIndexClient,
+    SonatypeGuideClient,
     VulnerabilityNormalizer,
-    Severity
+    Severity,
 )
 
 
@@ -67,17 +67,17 @@ class TestNVDClient(unittest.TestCase):
         self.assertEqual(cve["cve"]["id"], "CVE-2021-44228")
 
 
-class TestOSSIndexClient(unittest.TestCase):
-    """Testes para o cliente OSS Index."""
+class TestSonatypeGuideClient(unittest.TestCase):
+    """Testes para o cliente Sonatype Guide."""
     
     def setUp(self):
         """Configura o cliente para testes."""
-        self.client = OSSIndexClient()
+        self.client = SonatypeGuideClient()
     
     def test_initialization(self):
         """Testa inicialização do cliente."""
         self.assertIsNone(self.client.api_key)
-        self.assertEqual(self.client.get_source_name(), "OSS Index")
+        self.assertEqual(self.client.get_source_name(), "Sonatype Guide")
     
     def test_build_purl_npm(self):
         """Testa construção de purl para npm."""
@@ -193,7 +193,7 @@ class TestVulnerabilityNormalizer(unittest.TestCase):
         self.assertIn("Apache Log4j2", normalized["description"])
     
     def test_normalize_oss_index_vulnerability(self):
-        """Testa normalização de vulnerabilidade do OSS Index."""
+        """Testa normalização de vulnerabilidade do Sonatype Guide (compatível OSS Index)."""
         component_data = {
             "coordinates": "pkg:npm/express@4.17.1",
             "description": "Fast, unopinionated, minimalist web framework"
@@ -214,7 +214,7 @@ class TestVulnerabilityNormalizer(unittest.TestCase):
         )
         
         self.assertEqual(normalized["id"], "CVE-2021-1234")
-        self.assertEqual(normalized["source"], "OSS Index")
+        self.assertEqual(normalized["source"], "Sonatype Guide")
         self.assertEqual(normalized["severity"], Severity.HIGH.value)
         self.assertEqual(normalized["score"], 7.5)
 
@@ -233,11 +233,11 @@ class TestVulnerabilityNormalizer(unittest.TestCase):
         
         vuln2 = {
             "id": "CVE-2021-44228",
-            "source": "OSS Index",
+            "source": "Sonatype Guide",
             "severity": Severity.HIGH.value,
             "score": 9.0,
             "cvss": {},
-            "references": [{"url": "https://ossindex.sonatype.org", "source": "OSS", "tags": []}],
+            "references": [{"url": "https://guide.sonatype.com", "source": "Sonatype Guide", "tags": []}],
             "affected_products": []
         }
         
@@ -246,7 +246,7 @@ class TestVulnerabilityNormalizer(unittest.TestCase):
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0]["id"], "CVE-2021-44228")
         self.assertIn("NVD", merged[0]["sources"])
-        self.assertIn("OSS Index", merged[0]["sources"])
+        self.assertIn("Sonatype Guide", merged[0]["sources"])
         # Deve manter a severidade mais alta (CRITICAL)
         self.assertEqual(merged[0]["severity"], Severity.CRITICAL.value)
         # Deve mesclar referências
