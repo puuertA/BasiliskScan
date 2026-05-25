@@ -691,6 +691,8 @@ class ReportGenerator:
         import re
         code_blocks: List[tuple] = []
         inline_codes: List[tuple] = []
+
+        text = (text or "").replace('\r\n', '\n').replace('\r', '\n').strip()
         
         # Escapar HTML perigoso primeiro
         text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -711,11 +713,48 @@ class ReportGenerator:
             placeholder = f"@@BSCODEINLINE{len(inline_codes)}@@"
             inline_codes.append((placeholder, code))
             return placeholder
-        
-        # Headers (### -> h3, ## -> h2, # -> h1)
-        text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
-        text = re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=re.MULTILINE)
-        text = re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
+
+        def _is_separator_line(line: str) -> bool:
+            return re.match(r'^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$', line) is not None
+
+        def _split_table_row(line: str) -> List[str]:
+            trimmed = line.strip()
+            if trimmed.startswith('|'):
+                trimmed = trimmed[1:]
+            if trimmed.endswith('|'):
+                trimmed = trimmed[:-1]
+            return [cell.strip() for cell in trimmed.split('|')]
+
+        def _convert_tables(markdown: str) -> str:
+            lines = markdown.splitlines()
+            output: List[str] = []
+            index = 0
+            while index < len(lines):
+                line = lines[index]
+                if index + 1 < len(lines) and '|' in line and _is_separator_line(lines[index + 1]):
+                    header_cells = _split_table_row(line)
+                    index += 2
+                    body_rows: List[List[str]] = []
+                    while index < len(lines) and '|' in lines[index] and lines[index].strip():
+                        body_rows.append(_split_table_row(lines[index]))
+                        index += 1
+
+                    thead = "<thead><tr>" + "".join(
+                        f"<th>{cell}</th>" for cell in header_cells
+                    ) + "</tr></thead>"
+                    tbody_rows = "".join(
+                        "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>"
+                        for row in body_rows
+                    )
+                    tbody = f"<tbody>{tbody_rows}</tbody>"
+                    output.append(
+                        f"<div class=\"table-wrapper table-compact\"><table class=\"markdown-table\">{thead}{tbody}</table></div>"
+                    )
+                    continue
+
+                output.append(line)
+                index += 1
+            return "\n".join(output)
         
         # Blocos de código (```language ... ```)
         text = re.sub(
@@ -727,7 +766,30 @@ class ReportGenerator:
         
         # Código inline (`code`)
         text = re.sub(r'`([^`]+)`', _store_inline_code, text)
+
+        # Promover títulos numerados simples a heading Markdown
+        text = re.sub(r'^(\d+\.)\s+(.+)$', r'### \2', text, flags=re.MULTILINE)
+
+        # Garantir que o primeiro título apareça no topo
+        title_match = re.search(r'^(#{1,3})\s+.+$', text, flags=re.MULTILINE)
+        if title_match:
+            title_line = title_match.group(0)
+            start, end = title_match.span()
+            text = (text[:start] + text[end:]).strip()
+            text = f"{title_line}\n\n{text}".strip()
+
+        # Headers (###/##/# -> h1)
+        text = re.sub(r'^### (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
+        text = re.sub(r'^## (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
+        text = re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
         
+        # Imagens Markdown/HTML (remover para evitar links quebrados)
+        text = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', text)
+        text = re.sub(r'<img\b[^>]*>', '', text, flags=re.IGNORECASE)
+
+        # Normalizar múltiplas linhas em branco
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
         # Links [text](url)
         text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank">\1</a>', text)
         
@@ -737,7 +799,10 @@ class ReportGenerator:
         
         # Italic (*text* ou _text_)
         text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', text)
-        text = re.sub(r'_([^_]+)_', r'<em>\1</em>', text)
+        text = re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'<em>\1</em>', text)
+
+        # Tabelas Markdown
+        text = _convert_tables(text)
         
         # Quebras de linha
         text = text.replace('\n', '<br>')
@@ -753,7 +818,64 @@ class ReportGenerator:
 
         for placeholder, code in inline_codes:
             text = text.replace(placeholder, f'<code>{code}</code>')
+
+        text = re.sub(r'@@BSCODEBLOCK\d+@@', '', text)
+        text = re.sub(r'@@BSCODEINLINE\d+@@', '', text)
         
+        return text
+
+    def _extract_text_from_raw_data(self, raw_data: object) -> List[str]:
+        texts: List[str] = []
+        if isinstance(raw_data, dict):
+            for key, value in raw_data.items():
+                if key in {"details", "summary", "description", "title"} and isinstance(value, str):
+                    texts.append(value)
+                elif isinstance(value, (dict, list)):
+                    texts.extend(self._extract_text_from_raw_data(value))
+        elif isinstance(raw_data, list):
+            for item in raw_data:
+                texts.extend(self._extract_text_from_raw_data(item))
+        return texts
+
+    def _build_best_description(self, vuln: Dict[str, object]) -> str:
+        parts: List[str] = []
+        seen = set()
+
+        def _add(text: object) -> None:
+            if not isinstance(text, str):
+                return
+            normalized = text.strip()
+            if not normalized or normalized in seen:
+                return
+            seen.add(normalized)
+            parts.append(normalized)
+
+        _add(vuln.get("title"))
+        _add(vuln.get("summary"))
+        _add(vuln.get("description"))
+        _add(vuln.get("details"))
+
+        raw_data = vuln.get("raw_data")
+        for raw_text in self._extract_text_from_raw_data(raw_data):
+            _add(raw_text)
+
+        return "\n\n".join(parts) if parts else "Sem descrição disponível"
+
+    def _strip_remediation_sections(self, text: str) -> str:
+        """Remove seções de correção/mitigação para manter descrição focada em causa/impacto."""
+        if not text:
+            return text
+
+        import re
+        remediation_heading = re.compile(
+            r'^\s{0,3}(#+\s*)?(solution|remediation|mitigation|workaround|resolution|how to fix|fixed in|patch|'
+            r'solu[cç][aã]o|mitiga[cç][aã]o|corre[cç][aã]o|como corrigir|como mitigar)\b.*$',
+            re.IGNORECASE | re.MULTILINE,
+        )
+        match = remediation_heading.search(text)
+        if match:
+            trimmed = text[:match.start()].strip()
+            return trimmed or text
         return text
     
     def _translate_text(self, text: str) -> str:
@@ -2431,10 +2553,11 @@ class ReportGenerator:
                     severity_icon = self._get_severity_icon(severity.upper())
                     severity_description = self._get_severity_description(severity.upper())
                     score = vuln.get('score', 0)
-                    description = vuln.get('description', 'Sem descrição disponível')
+                    description_raw = self._build_best_description(vuln)
                     cvss_tooltip = self._build_cvss_tooltip(vuln)
                     
                     # Converter Markdown para HTML
+                    description = self._strip_remediation_sections(description_raw)
                     description_html = self._markdown_to_html(description)
                     
                     # Traduzir descrição
@@ -2476,14 +2599,18 @@ class ReportGenerator:
                                     <strong>Descrição Completa</strong>
                                 </div>
                                 <div class="description-content" id="{expand_id}">
-                                    <div class="description-text">
-                                        <strong>Original (Inglês):</strong><br><br>
-                                        {description_html}
-                                    </div>
-                                    <div class="description-translation">
-                                        <div class="translation-label"><i class="bi bi-translate"></i> Tradução (Português):</div>
-                                        <div>{description_pt_html}</div>
-                                    </div>
+                                    <details class="description-dropdown" open>
+                                        <summary><span class="summary-arrow">▶</span> Original (Inglês)</summary>
+                                        <div class="description-text">
+                                            {description_html}
+                                        </div>
+                                    </details>
+                                    <details class="description-dropdown">
+                                        <summary><span class="summary-arrow">▶</span> Tradução (Português)</summary>
+                                        <div class="description-translation">
+                                            {description_pt_html}
+                                        </div>
+                                    </details>
                                 </div>
                             </div>
                             

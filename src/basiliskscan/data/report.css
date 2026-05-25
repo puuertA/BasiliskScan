@@ -41,7 +41,7 @@
         }
         
         .header h1 {
-            font-size: 2.5em;
+            font-size: 2.9em;
             margin-bottom: 10px;
             font-weight: 700;
         }
@@ -147,7 +147,7 @@
         }
         
         .section-title {
-            font-size: 1.8em;
+            font-size: 2.1em;
             margin-bottom: 20px;
             color: #e0e0e0;
             border-bottom: 2px solid #404040;
@@ -155,7 +155,7 @@
         }
         
         .section-subtitle {
-            font-size: 1.3em;
+            font-size: 1.45em;
             margin: 30px 0 15px 0;
             color: #b0b0b0;
         }
@@ -414,7 +414,7 @@
 
         .vuln-card-body.expanded {
             max-height: 12000px;
-            overflow: visible;
+            overflow: hidden;
             opacity: 1;
             margin-top: 15px;
         }
@@ -1076,7 +1076,8 @@
         }
         
         .description-content.expanded {
-            max-height: 3000px;
+            max-height: 520px;
+            overflow: auto;
         }
         
         .description-text {
@@ -1087,6 +1088,49 @@
             border-left: 3px solid #4a90d9;
             line-height: 1.8;
         }
+
+        .description-text table,
+        .description-translation table {
+            width: 100%;
+            max-width: 100%;
+            table-layout: fixed;
+            font-size: 0.82rem;
+            border-collapse: collapse;
+        }
+
+        .description-text th,
+        .description-text td,
+        .description-translation th,
+        .description-translation td {
+            padding: 6px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            word-break: break-word;
+        }
+
+        .description-text img,
+        .description-translation img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .description-text table,
+        .description-translation table {
+            width: 100%;
+            max-width: 100%;
+            table-layout: fixed;
+            font-size: 0.85rem;
+            border-collapse: collapse;
+        }
+
+        .description-text th,
+        .description-text td,
+        .description-translation th,
+        .description-translation td {
+            padding: 6px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            word-break: break-word;
+        }
         
         .description-text h1,
         .description-text h2,
@@ -1094,19 +1138,19 @@
             color: #4a90d9;
             margin-top: 15px;
             margin-bottom: 10px;
-            font-weight: 600;
+            font-weight: 700;
         }
         
         .description-text h1 {
-            font-size: 1.5em;
+            font-size: 1.8em;
         }
         
         .description-text h2 {
-            font-size: 1.3em;
+            font-size: 1.8em;
         }
         
         .description-text h3 {
-            font-size: 1.1em;
+            font-size: 1.8em;
         }
         
         .description-text code {
@@ -1156,9 +1200,10 @@
         
         .description-translation {
             padding: 15px;
-            background: rgba(74, 144, 217, 0.1);
+            background: rgba(0,0,0,0.18);
             border-radius: 5px;
-            border-left: 3px solid #4a90d9;
+            border-left: 3px solid #2ecc71;
+            border-top: 1px dashed rgba(255, 255, 255, 0.12);
             line-height: 1.8;
         }
         
@@ -1168,19 +1213,19 @@
             color: #4a90d9;
             margin-top: 15px;
             margin-bottom: 10px;
-            font-weight: 600;
+            font-weight: 700;
         }
         
         .description-translation h1 {
-            font-size: 1.5em;
+            font-size: 1.8em;
         }
         
         .description-translation h2 {
-            font-size: 1.3em;
+            font-size: 1.8em;
         }
         
         .description-translation h3 {
-            font-size: 1.1em;
+            font-size: 1.8em;
         }
         
         .description-translation code {
@@ -1216,6 +1261,33 @@
         
         .description-translation a:hover {
             color: #5aa3e8;
+        }
+
+        .description-dropdown {
+            margin-top: 12px;
+        }
+
+        .description-dropdown summary {
+            cursor: pointer;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #e0e0e0;
+            list-style: none;
+        }
+
+        .description-dropdown summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .description-dropdown .summary-arrow {
+            transition: transform 0.3s ease;
+            display: inline-block;
+        }
+
+        .description-dropdown[open] .summary-arrow {
+            transform: rotate(90deg);
         }
         
         .description-translation strong {
@@ -1282,6 +1354,10 @@
             overflow-x: auto;
             margin-top: 20px;
         }
+
+        .table-wrapper.table-compact {
+            margin-top: 12px;
+        }
         
         table {
             width: 100%;
@@ -1289,6 +1365,14 @@
             background: #2a2a2a;
             border-radius: 8px;
             overflow: hidden;
+        }
+
+        .markdown-table {
+            width: 100%;
+            max-width: 100%;
+            font-size: 0.85em;
+            background: #2a2a2a;
+            border-radius: 6px;
         }
         
         thead {
@@ -1307,6 +1391,15 @@
             padding: 15px;
             border-bottom: 1px solid #333;
             color: #b0b0b0;
+        }
+
+        .markdown-table th {
+            padding: 8px 10px;
+            font-weight: 600;
+        }
+
+        .markdown-table td {
+            padding: 8px 10px;
         }
         
         tr:hover {

@@ -130,6 +130,21 @@ End.'''
         self.assertIn('<em>', result)
         self.assertNotIn('@@BSCODEINLINE', result)
 
+    def test_markdown_table_rendering(self):
+        """Testa que tabelas Markdown são convertidas para HTML."""
+        text = (
+            "| Metric | Value | Justification |\n"
+            "|---|---|---|\n"
+            "| Attack Vector | Network | Remote |\n"
+            "| Integrity | High | Modified values |"
+        )
+        result = self.reporter._markdown_to_html(text)
+        self.assertIn('<table class="markdown-table">', result)
+        self.assertIn('<thead>', result)
+        self.assertIn('<tbody>', result)
+        self.assertIn('<th>Metric</th>', result)
+        self.assertIn('<td>Network</td>', result)
+
     def test_no_false_placeholder_remnants(self):
         """Testa que não há placeholders remanescentes em qualquer saída."""
         test_cases = [
