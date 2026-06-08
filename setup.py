@@ -7,11 +7,17 @@ from setuptools import setup
 # Executa script de seed se não existir ou estiver vazio
 def ensure_seed_db():
     """Popula banco seed se estiver vazio ou inexistente."""
-    seed_path = Path(__file__).resolve().parent / "resources" / "offline" / "offline_vulnerabilities.db"
+    project_root = Path(__file__).resolve().parent
+    seed_path = project_root / "resources" / "offline" / "offline_vulnerabilities.db"
+    package_seed_path = project_root / "src" / "basiliskscan" / "data" / "offline" / "offline_vulnerabilities.db"
     
     # Verificar tamanho mínimo (DB populado deve ter > 100KB)
     if seed_path.exists() and seed_path.stat().st_size > 100000:
         print(f"Seed DB ja existe e tem tamanho adequado: {seed_path.stat().st_size / 1024:.1f}KB")
+        package_seed_path.parent.mkdir(parents=True, exist_ok=True)
+        if not package_seed_path.exists() or package_seed_path.stat().st_size != seed_path.stat().st_size:
+            package_seed_path.write_bytes(seed_path.read_bytes())
+            print(f"Seed DB sincronizado para pacote: {package_seed_path}")
         return
     
     print("Gerando banco seed com vulnerabilidades de libs populares...")

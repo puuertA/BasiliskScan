@@ -124,7 +124,7 @@ def set_seed_metadata(conn: sqlite3.Connection) -> None:
 
 
 def main():
-    seed_path = Path(__file__).resolve().parents[2] / "resources" / "offline" / "offline_vulnerabilities.db"
+    seed_path = Path(__file__).resolve().parents[1] / "resources" / "offline" / "offline_vulnerabilities.db"
     
     print(f"📦 Populando seed DB: {seed_path}")
     

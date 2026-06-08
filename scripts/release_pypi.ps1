@@ -37,26 +37,29 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $ProjectRoot
 
 if ($SkipBump) {
-    Write-Host "[1/4] Version bump skipped (-SkipBump)." -ForegroundColor Yellow
+    Write-Host "[1/5] Version bump skipped (-SkipBump)." -ForegroundColor Yellow
 } else {
-    Write-Host "[1/4] Bumping version ($Bump)..." -ForegroundColor Cyan
+    Write-Host "[1/5] Bumping version ($Bump)..." -ForegroundColor Cyan
     Invoke-ExternalCommand -Command $PythonCmd -Arguments @("scripts/bump_version.py", $Bump) -ErrorMessage "Falha no bump de versão"
 }
 
-Write-Host "[2/4] Cleaning dist/..." -ForegroundColor Cyan
+Write-Host "[2/5] Preparing offline seed..." -ForegroundColor Cyan
+Invoke-ExternalCommand -Command $PythonCmd -Arguments @("scripts/prepare_offline_seed.py") -ErrorMessage "Falha ao preparar banco offline seed"
+
+Write-Host "[3/5] Cleaning dist/..." -ForegroundColor Cyan
 if (Test-Path "dist") {
     Remove-Item -Recurse -Force "dist"
 }
 
-Write-Host "[3/4] Building package..." -ForegroundColor Cyan
+Write-Host "[4/5] Building package..." -ForegroundColor Cyan
 Invoke-ExternalCommand -Command $PythonCmd -Arguments @("-m", "build") -ErrorMessage "Falha ao gerar os artefatos do pacote"
 
 if ($SkipUpload) {
-    Write-Host "[4/4] Upload skipped (-SkipUpload)." -ForegroundColor Yellow
+    Write-Host "[5/5] Upload skipped (-SkipUpload)." -ForegroundColor Yellow
     exit 0
 }
 
-Write-Host "[4/4] Uploading to PyPI..." -ForegroundColor Cyan
+Write-Host "[5/5] Uploading to PyPI..." -ForegroundColor Cyan
 if (-not $env:TWINE_USERNAME) {
     if ($env:TWINE_PASSWORD) {
         $env:TWINE_USERNAME = "__token__"
