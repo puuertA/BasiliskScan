@@ -64,19 +64,11 @@ class OfflineVulnerabilityDB:
             return
 
         if self._should_refresh_seed(self.db_path, seed_path):
-            backup_path = self.db_path.with_suffix(f"{self.db_path.suffix}.bak")
-            try:
-                shutil.copy2(self.db_path, backup_path)
-            except Exception:
-                pass
-            shutil.copy2(seed_path, self.db_path)
+            self._merge_seed_database(seed_path)
 
     def _should_refresh_seed(self, local_path: Path, seed_path: Path) -> bool:
         if self._is_seed_force_enabled():
             return True
-
-        if not self._is_seed_refresh_enabled():
-            return False
 
         local_stats = self._read_seed_stats(local_path)
         seed_stats = self._read_seed_stats(seed_path)
@@ -87,17 +79,168 @@ class OfflineVulnerabilityDB:
         if local_stats:
             local_components = local_stats.get("total_components", 0)
             seed_components = seed_stats.get("total_components", 0)
-            if seed_components <= local_components:
-                return False
+            local_vulnerabilities = local_stats.get("total_vulnerabilities", 0)
+            seed_vulnerabilities = seed_stats.get("total_vulnerabilities", 0)
+            local_sync = local_stats.get("last_full_sync_at")
+            seed_sync = seed_stats.get("last_full_sync_at")
 
-            if local_stats.get("has_user_sync"):
-                return False
+            if seed_components <= local_components and seed_vulnerabilities <= local_vulnerabilities:
+                if not seed_sync or (local_sync and seed_sync <= local_sync):
+                    return False
 
             ratio = seed_components / max(local_components, 1)
-            if ratio < self._SEED_REFRESH_RATIO and (seed_components - local_components) < self._SEED_REFRESH_MIN_DIFF:
+            component_diff = seed_components - local_components
+            vulnerability_diff = seed_vulnerabilities - local_vulnerabilities
+            if seed_sync and (not local_sync or seed_sync > local_sync):
+                return True
+
+            if ratio < self._SEED_REFRESH_RATIO and component_diff < self._SEED_REFRESH_MIN_DIFF:
                 return False
 
         return True
+
+    def _merge_seed_database(self, seed_path: Path) -> None:
+        local_conn = None
+        seed_conn = None
+        try:
+            local_conn = sqlite3.connect(str(self.db_path))
+            local_conn.row_factory = sqlite3.Row
+            seed_conn = sqlite3.connect(str(seed_path))
+            seed_conn.row_factory = sqlite3.Row
+
+            local_cursor = local_conn.cursor()
+            seed_cursor = seed_conn.cursor()
+
+            seed_cursor.execute(
+                """
+                SELECT id, name, version, ecosystem, first_seen_at, last_synced_at, next_sync_at
+                FROM components
+                """
+            )
+            seed_components = seed_cursor.fetchall()
+
+            for seed_component in seed_components:
+                local_cursor.execute(
+                    """
+                    SELECT id, last_synced_at
+                    FROM components
+                    WHERE name = ? AND version = ? AND ecosystem = ?
+                    """,
+                    (
+                        seed_component["name"],
+                        seed_component["version"],
+                        seed_component["ecosystem"],
+                    ),
+                )
+                local_component = local_cursor.fetchone()
+                should_replace_vulnerabilities = True
+
+                if local_component:
+                    local_component_id = int(local_component["id"])
+                    local_synced_at = str(local_component["last_synced_at"] or "")
+                    seed_synced_at = str(seed_component["last_synced_at"] or "")
+                    if local_synced_at and seed_synced_at and local_synced_at > seed_synced_at:
+                        should_replace_vulnerabilities = False
+                    else:
+                        local_cursor.execute(
+                            """
+                            UPDATE components
+                            SET first_seen_at = ?, last_synced_at = ?, next_sync_at = ?
+                            WHERE id = ?
+                            """,
+                            (
+                                seed_component["first_seen_at"],
+                                seed_component["last_synced_at"],
+                                seed_component["next_sync_at"],
+                                local_component_id,
+                            ),
+                        )
+                else:
+                    local_cursor.execute(
+                        """
+                        INSERT INTO components(name, version, ecosystem, first_seen_at, last_synced_at, next_sync_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            seed_component["name"],
+                            seed_component["version"],
+                            seed_component["ecosystem"],
+                            seed_component["first_seen_at"],
+                            seed_component["last_synced_at"],
+                            seed_component["next_sync_at"],
+                        ),
+                    )
+                    local_component_id = int(local_cursor.lastrowid)
+
+                if not should_replace_vulnerabilities:
+                    continue
+
+                local_cursor.execute("DELETE FROM vulnerabilities WHERE component_id = ?", (local_component_id,))
+                seed_cursor.execute(
+                    """
+                    SELECT vulnerability_id, source, title, description, severity, score, published, modified,
+                           fixed_version, aliases_json, sources_json, references_json, affected_products_json,
+                           cwe_json, raw_data_json, updated_at
+                    FROM vulnerabilities
+                    WHERE component_id = ?
+                    """,
+                    (int(seed_component["id"]),),
+                )
+                for vulnerability in seed_cursor.fetchall():
+                    local_cursor.execute(
+                        """
+                        INSERT INTO vulnerabilities(
+                            component_id, vulnerability_id, source, title, description, severity, score,
+                            published, modified, fixed_version, aliases_json, sources_json, references_json,
+                            affected_products_json, cwe_json, raw_data_json, updated_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            local_component_id,
+                            vulnerability["vulnerability_id"],
+                            vulnerability["source"],
+                            vulnerability["title"],
+                            vulnerability["description"],
+                            vulnerability["severity"],
+                            vulnerability["score"],
+                            vulnerability["published"],
+                            vulnerability["modified"],
+                            vulnerability["fixed_version"],
+                            vulnerability["aliases_json"],
+                            vulnerability["sources_json"],
+                            vulnerability["references_json"],
+                            vulnerability["affected_products_json"],
+                            vulnerability["cwe_json"],
+                            vulnerability["raw_data_json"],
+                            vulnerability["updated_at"],
+                        ),
+                    )
+
+            seed_cursor.execute("SELECT key, value FROM sync_metadata")
+            for metadata in seed_cursor.fetchall():
+                local_cursor.execute(
+                    """
+                    INSERT INTO sync_metadata(key, value)
+                    VALUES(?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                    """,
+                    (metadata["key"], metadata["value"]),
+                )
+
+            local_conn.commit()
+        except Exception:
+            backup_path = self.db_path.with_suffix(f"{self.db_path.suffix}.bak")
+            try:
+                shutil.copy2(self.db_path, backup_path)
+            except Exception:
+                pass
+            shutil.copy2(seed_path, self.db_path)
+        finally:
+            if local_conn:
+                local_conn.close()
+            if seed_conn:
+                seed_conn.close()
 
     def _is_seed_force_enabled(self) -> bool:
         value = os.getenv(self.SEED_FORCE_ENV, "").strip().lower()
@@ -121,13 +264,13 @@ class OfflineVulnerabilityDB:
 
             cursor.execute("SELECT value FROM sync_metadata WHERE key = 'last_full_sync_at'")
             last_full_sync = cursor.fetchone()
-            has_user_sync = bool(last_full_sync and last_full_sync["value"])
+            last_full_sync_at = str(last_full_sync["value"]) if last_full_sync and last_full_sync["value"] else None
 
             conn.close()
             return {
                 "total_components": total_components,
                 "total_vulnerabilities": total_vulnerabilities,
-                "has_user_sync": has_user_sync,
+                "last_full_sync_at": last_full_sync_at,
             }
         except Exception:
             return None
